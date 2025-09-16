@@ -1,0 +1,17 @@
+# Configuration for Dylan MMLU
+
+# Global settings
+random_seed: 0  # Random seed for reproducibility
+
+# Agent settings
+num_agents: 4              # Number of agents to use
+num_rounds: 3              # Number of rounds to run
+activation: "listwise"     # Activation function: listwise, trueskill, window, or none
+type: "single_choice"      # Question type: single_choice or math_exp
+
+# Available roles for agents (must match or exceed num_agents)
+roles:
+  - "Assistant"
+  - "Mathematician" 
+  - "Economist"
+  - "Psychologist"

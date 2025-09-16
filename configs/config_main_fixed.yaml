@@ -1,0 +1,9 @@
+# 修复后的MacNet配置
+agent_num: 4
+topology: chain  # 改为更简单的拓扑
+reverse: false
+type: default  # 改为default类型
+aggregate_retry_limit: 15  # 增加重试次数
+aggregate_unit_num: 2
+node_in_id: -1
+node_out_id: -2

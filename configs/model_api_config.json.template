@@ -1,0 +1,51 @@
+{
+    "llama-3.3-70b-instruct": {
+        "model_list": [
+            {"model_name": "llama-3.3-70b-instruct", "model_url": "YOUR_MODEL_URL_HERE", "api_key": "YOUR_API_KEY_HERE"}
+        ],
+        "max_workers_per_model": 1
+    },
+    "gpt-4o-mini": {
+        "model_list": [
+            {"model_name": "gpt-4o-mini-2024-07-18", "model_url": "YOUR_OPENAI_URL_HERE", "api_key": "YOUR_OPENAI_API_KEY_HERE"}
+        ],
+        "max_workers_per_model": 20
+    },
+    "gpt-4o": {
+        "model_list": [
+            {"model_name": "gpt-4o-2024-08-06", "api_key": "YOUR_OPENAI_API_KEY_HERE"}
+        ],
+        "max_workers_per_model": 1
+    },
+    "gpt-4o-mini-azure": {
+        "model_list": [
+            {
+                "model_name": "gpt-4o-mini-2024-07-18", 
+                "provider": "azure",
+                "azure_endpoint": "YOUR_AZURE_ENDPOINT",
+                "api_key": "YOUR_AZURE_API_KEY",
+                "api_version": "2025-03-01-preview"
+            }
+        ],
+        "max_workers_per_model": 1
+    },
+    "gemini-2.5-flash": {
+        "model_list": [
+            {
+                "model_name": "gemini-2.5-flash", 
+                "model_url": "https://generativelanguage.googleapis.com/v1beta/openai/", 
+                "api_key": "YOUR_GEMINI_API_KEY",
+                "reasoning_effort": "none"
+            }
+        ],
+        "max_workers_per_model": 1
+    },
+    "gemini-2.0-flash": {
+        "model_list": [
+            {"model_name": "gemini-2.0-flash", 
+            "model_url": "https://generativelanguage.googleapis.com/v1beta/openai/", 
+            "api_key": "YOUR_GEMINI_API_KEY"}
+        ],
+        "max_workers_per_model": 1
+    }
+}

@@ -1,0 +1,1 @@
+python magentic_one/gaia.py --target-agent WebSurfer --level 2 --fm-type FM-1.5

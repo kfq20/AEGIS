@@ -1,0 +1,182 @@
+{
+  "unified_training_data_schema": {
+    "description": "统一的训练数据格式，用于多智能体系统故障检测",
+    "version": "1.0",
+    "fields": {
+      "id": {
+        "type": "string",
+        "description": "唯一标识符，格式：{benchmark}_{model}_{framework}_{file_hash}_{line_number}"
+      },
+      "metadata": {
+        "type": "object",
+        "properties": {
+          "framework": {
+            "type": "string", 
+            "description": "MAS框架名称",
+            "enum": ["agentverse", "dylan", "llm_debate", "macnet", "chatdev"]
+          },
+          "benchmark": {
+            "type": "string",
+            "description": "数据集名称",
+            "enum": ["GSM8K", "HumanEval", "MATH", "MMLU", "SciBench"]
+          },
+          "model": {
+            "type": "string",
+            "description": "使用的LLM模型"
+          },
+          "num_agents": {
+            "type": "integer",
+            "description": "参与的智能体总数"
+          },
+          "num_injected_agents": {
+            "type": "integer", 
+            "description": "注入故障的智能体数量"
+          },
+          "task_type": {
+            "type": "string",
+            "description": "任务类型",
+            "enum": ["math", "code_generation", "reasoning", "qa"]
+          }
+        }
+      },
+      "input": {
+        "type": "object",
+        "description": "模型输入：统一格式的对话轨迹",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "原始问题"
+          },
+          "conversation_history": {
+            "type": "array",
+            "description": "标准化的对话历史",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "type": "integer",
+                  "description": "对话步骤序号"
+                },
+                "agent_name": {
+                  "type": "string", 
+                  "description": "标准化的智能体名称"
+                },
+                "agent_role": {
+                  "type": "string",
+                  "description": "智能体角色描述"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "对话内容"
+                },
+                "phase": {
+                  "type": "string",
+                  "description": "对话阶段",
+                  "enum": ["initialization", "discussion", "reasoning", "decision", "evaluation", "other"]
+                }
+              }
+            }
+          },
+          "final_output": {
+            "type": "string",
+            "description": "多智能体系统的最终输出结果，如果没有则标记为'No final output available'"
+          }
+        }
+      },
+      "output": {
+        "type": "object", 
+        "description": "模型输出：故障检测结果",
+        "properties": {
+          "faulty_agents": {
+            "type": "array",
+            "description": "故障智能体列表",
+            "items": {
+              "type": "object",
+              "properties": {
+                "agent_name": {
+                  "type": "string",
+                  "description": "故障智能体名称"
+                },
+                "error_type": {
+                  "type": "string", 
+                  "description": "故障类型",
+                  "enum": ["FM-1.1", "FM-1.2", "FM-1.3", "FM-1.4", "FM-1.5", 
+                           "FM-2.1", "FM-2.2", "FM-2.3", "FM-2.4", "FM-2.5", "FM-2.6",
+                           "FM-3.1", "FM-3.2", "FM-3.3"]
+                },
+                "injection_strategy": {
+                  "type": "string",
+                  "description": "注入策略",
+                  "enum": ["prompt_injection", "response_corruption"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "ground_truth": {
+        "type": "object",
+        "description": "真实标签信息（用于验证）",
+        "properties": {
+          "correct_answer": {
+            "type": "string",
+            "description": "问题的正确答案"
+          },
+          "injected_agents": {
+            "type": "array",
+            "description": "实际注入故障的智能体信息",
+            "items": {
+              "type": "object", 
+              "properties": {
+                "agent_name": {"type": "string"},
+                "error_type": {"type": "string"},
+                "injection_strategy": {"type": "string"},
+                "malicious_action_description": {"type": "string"}
+              }
+            }
+          },
+          "is_injection_successful": {
+            "type": "boolean",
+            "description": "注入是否成功（是否导致答题错误）"
+          }
+        }
+      }
+    }
+  },
+  
+  "error_type_mapping": {
+    "description": "错误类型分类和描述",
+    "categories": {
+      "FM-1.x": "Role Specification Issues - 角色规范问题",
+      "FM-2.x": "Content Manipulation Issues - 内容操作问题", 
+      "FM-3.x": "Process Control Issues - 流程控制问题"
+    },
+    "detailed_mapping": {
+      "FM-1.1": "Role confusion - 角色混淆",
+      "FM-1.2": "Role specification deviation - 角色规范偏离",
+      "FM-1.3": "Add redundant steps - 添加冗余步骤",
+      "FM-1.4": "Role switching - 角色切换",
+      "FM-1.5": "Unauthorized role assumption - 未授权角色假设",
+      
+      "FM-2.1": "Information omission - 信息遗漏",
+      "FM-2.2": "Hide important information - 隐藏重要信息", 
+      "FM-2.3": "Deviate from main goal - 偏离主要目标",
+      "FM-2.4": "Spread misinformation - 传播错误信息",
+      "FM-2.5": "Corrupt reasoning process - 破坏推理过程",
+      "FM-2.6": "Manipulate evidence - 操作证据",
+      
+      "FM-3.1": "Disrupt coordination - 破坏协调",
+      "FM-3.2": "Force early termination - 强制早期终止",
+      "FM-3.3": "Control conversation flow - 控制对话流程"
+    }
+  },
+  
+  "agent_name_standardization": {
+    "description": "不同框架的智能体名称标准化映射",
+    "agentverse_roles": ["RoleAssigner", "Solver", "Critic", "Evaluator"],
+    "dylan_roles": ["Assistant", "Tester", "Reflector", "Programmer", "Debugger", "ComputerScientist", "AlgorithmDeveloper", "PythonAssistant", "QualityManager"],
+    "llm_debate_roles": ["Assistant 1", "Assistant 2", "Assistant 3", "Aggregator"],
+    "macnet_roles": ["Node1", "Node2", "Node3", "Node4", "Node5", "Node-1"],
+    "chatdev_roles": ["CEO", "CTO", "Programmer", "Reviewer", "Tester"]
+  }
+}
