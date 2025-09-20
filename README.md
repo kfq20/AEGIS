@@ -2,7 +2,8 @@
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://www.python.org/)
-[![arXiv](https://img.shields.io/badge/arXiv-2025.xxxxx-red.svg)](https://arxiv.org/abs/2025.xxxxx)
+[![arXiv](https://img.shields.io/badge/📄%20arXiv-2509.14295-red.svg)](https://arxiv.org/abs/2509.14295)
+[![Dataset](https://img.shields.io/badge/🤗%20Hugging%20Face-Dataset-yellow)](https://huggingface.co/datasets/Fancylalala/AEGIS)
 
 ## 🎯 Overview
 
@@ -253,10 +254,13 @@ See the `examples/` directory for detailed usage examples:
 If you use AEGIS in your research, please cite:
 
 ```bibtex
-@article{aegis2025,
-  title={AEGIS: Automated Error Generation and Identification for Multi-Agent Systems},
-  author={Fanqi Kong, Ruijie Zhang, ...},
-  journal={arxiv},
-  year={2025}
+@misc{kong2025aegisautomatederrorgeneration,
+      title={AEGIS: Automated Error Generation and Identification for Multi-Agent Systems}, 
+      author={Fanqi Kong and Ruijie Zhang and Huaxiao Yin and Guibin Zhang and Xiaofei Zhang and Ziang Chen and Zhaowei Zhang and Xiaoyuan Zhang and Song-Chun Zhu and Xue Feng},
+      year={2025},
+      eprint={2509.14295},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2509.14295}, 
 }
 ```
