@@ -254,13 +254,10 @@ See the `examples/` directory for detailed usage examples:
 If you use AEGIS in your research, please cite:
 
 ```bibtex
-@misc{kong2025aegisautomatederrorgeneration,
-      title={AEGIS: Automated Error Generation and Identification for Multi-Agent Systems}, 
-      author={Fanqi Kong and Ruijie Zhang and Huaxiao Yin and Guibin Zhang and Xiaofei Zhang and Ziang Chen and Zhaowei Zhang and Xiaoyuan Zhang and Song-Chun Zhu and Xue Feng},
-      year={2025},
-      eprint={2509.14295},
-      archivePrefix={arXiv},
-      primaryClass={cs.RO},
-      url={https://arxiv.org/abs/2509.14295}, 
+@article{kong2025aegis,
+  title={AEGIS: Automated Error Generation and Identification for Multi-Agent Systems},
+  author={Kong, Fanqi and Zhang, Ruijie and Yin, Huaxiao and Zhang, Guibin and Zhang, Xiaofei and Chen, Ziang and Zhang, Zhaowei and Zhang, Xiaoyuan and Zhu, Song-Chun and Feng, Xue},
+  journal={arXiv preprint arXiv:2509.14295},
+  year={2025}
 }
 ```
