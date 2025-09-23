@@ -986,7 +986,7 @@ class MarkdownConverter:
         # Use puremagic to guess
         try:
             try:
-t		# 检查文件是否存在且为常规文件
+		# Check if file exists and is regular file
                 if not os.path.exists(path):
                 	print(f"Warning: File does not exist: {path}")
                 	return None
@@ -995,13 +995,13 @@ t		# 检查文件是否存在且为常规文件
                 	return None
                 guesses = puremagic.magic_file(path)
             except PureError as e:
-                print(f"PureError处理文件 {path}: {e}")
+                print(f"PureError handling file {path}: {e}")
                 return None
             except Exception as e:
-                print(f"文件类型检测错误 {path}: {e}")
+                print(f"File type detection error {path}: {e}")
                 return None
             
-            # 继续原始的guesses处理
+            # Continue with original guesses processing
             if len(guesses) > 0:
                 ext = guesses[0].extension.strip()
                 if len(ext) > 0:

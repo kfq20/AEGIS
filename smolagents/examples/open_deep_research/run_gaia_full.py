@@ -152,7 +152,7 @@ def create_agent_team(model: Model):
     ti_tool = TextInspectorTool(model, text_limit)
 
     browser = SimpleTextBrowser(**BROWSER_CONFIG)
-    # 统一使用弹性搜索工具，内部优先 Serper，失败回退 SerpAPI；同时提供文本浏览器搜索
+    # Use resilient search tool with fallback mechanism
     resilient_web_search = ResilientWebSearchTool()
     search_info_tool = SearchInformationTool(browser)
     setattr(search_info_tool, "name", "text_browser_search")

@@ -69,10 +69,10 @@ def get_zip_description(file_path: str, question: str, visual_inspection_tool, d
     folder_path = file_path.replace(".zip", "")
     os.makedirs(folder_path, exist_ok=True)
     
-    # 修复文件路径问题 - 优先使用data/gaia/2023/路径
+    # Fix file path issue - prioritize using data/gaia/2023/ path
     actual_file_path = file_path
     if not os.path.exists(file_path):
-        # 尝试在2023目录中找到文件
+        # Try to find file in 2023 directory
         alt_path = file_path.replace("data/gaia/validation/", "data/gaia/2023/validation/")
         if os.path.exists(alt_path):
             actual_file_path = alt_path
