@@ -13,7 +13,6 @@ from typing import Dict, List, Any, Tuple
 from dataclasses import dataclass
 import argparse
 
-# 添加项目根目录到path，以便导入analyze_injection_errors
 sys.path.append(str(Path(__file__).parent.parent))
 from analyze_injection_errors import analyze_benchmark_errors, parse_filename
 
@@ -39,10 +38,8 @@ class FrameworkDataProcessor:
     
     def standardize_agent_name(self, original_name: str, framework: str) -> str:
         """标准化智能体名称"""
-        # 移除索引和特殊字符，保留核心角色名称
         name = original_name.strip().lower()
         
-        # 针对不同框架的特殊处理
         if framework == "agentverse":
             if "roleassigner" in name:
                 return "RoleAssigner"
@@ -75,7 +72,6 @@ class FrameworkDataProcessor:
                 
         elif framework == "llm_debate":
             if "assistant" in name:
-                # 提取数字
                 import re
                 match = re.search(r'(\d+)', name)
                 if match:
@@ -84,25 +80,20 @@ class FrameworkDataProcessor:
             elif "aggregator" in name:
                 return "Aggregator"
             else:
-                # 添加fallback：如果无法识别，使用默认名称
                 return "Assistant"
                 
         elif framework == "macnet":
             if "node" in name:
-                # 提取节点标识，正确处理node-1这样的情况
                 import re
-                # 修复正则表达式：正确处理连字符
                 match = re.search(r'node-?(\d+)', name)
                 if match:
                     node_num = match.group(1)
-                    # 如果原始名称包含连字符，保留连字符
                     if '-' in name:
                         return f"Node-{node_num}"
                     else:
                         return f"Node{node_num}"
                 return "Node"
         
-        # 默认返回清理后的名称
         return original_name.title()
     
     def standardize_phase(self, original_phase: str) -> str:
@@ -134,14 +125,12 @@ class FrameworkDataProcessor:
         """提取系统的最终输出"""
         final_output = injection_log.get("final_output", {})
         if isinstance(final_output, dict):
-            # 尝试获取response字段
             response = final_output.get("response", "")
             if response:
                 return response
         elif isinstance(final_output, str):
             return final_output
         
-        # 如果没有final_output，尝试从其他字段获取
         if "response" in injection_log:
             return injection_log["response"]
         
@@ -159,33 +148,26 @@ class AgentVerseProcessor(FrameworkDataProcessor):
         error_type = file_params.get("error_type", "")
         injection_type = file_params.get("injection_type", "")
         
-        # 解析智能体名称 - AgentVerse格式: solver1-evaluator1-critic2
         agent_names = []
         if agent_type:
-            # 按-分割，每个部分包含角色名和编号
             parts = agent_type.split("-")
             for part in parts:
                 if part:
-                    # 提取角色名（去掉末尾数字）
                     import re
                     role_match = re.match(r'([a-zA-Z]+)\d*', part)
                     if role_match:
                         agent_names.append(role_match.group(1))
         
-        # 解析错误类型 - 格式: FM-3.2-FM-1.2-FM-2.6
         error_types = []
         if error_type:
             import re
             matches = re.findall(r'FM-\d+\.\d+', error_type)
             error_types = matches if matches else [error_type]
         
-        # 解析注入策略 - 格式: response_corruption-response_corruption-prompt_injection
         injection_strategies = []
         if injection_type:
-            # 先移除末尾的数量标识（如n3）
             import re
             cleaned_type = re.sub(r'_?n\d+$', '', injection_type)
-            # 按-分割
             parts = cleaned_type.split("-")
             injection_strategies = [part for part in parts if part]
         
@@ -194,10 +176,8 @@ class AgentVerseProcessor(FrameworkDataProcessor):
     def process_sample(self, sample: Dict[str, Any], file_params: Dict[str, Any], line_number: int) -> UnifiedTrainingData:
         injection_log = sample.get("injection_log", {})
         
-        # 解析文件名中的多智能体信息
         agent_names, error_types, injection_strategies = self.parse_multi_agent_info(file_params)
         
-        # 构建metadata
         metadata = {
             "framework": "agentverse",
             "benchmark": file_params.get("benchmark", ""),
@@ -207,7 +187,6 @@ class AgentVerseProcessor(FrameworkDataProcessor):
             "task_type": self._infer_task_type(sample.get("tag", []))
         }
         
-        # 构建输入（标准化对话历史）
         conversation_history = []
         history = injection_log.get("conversation_history", [])
         
@@ -227,17 +206,14 @@ class AgentVerseProcessor(FrameworkDataProcessor):
             "final_output": self.extract_final_output(injection_log)
         }
         
-        # 构建输出（故障检测结果）
         faulty_agents = []
         multi_injection_info = injection_log.get("multi_injection_info", [])
         
-        # 如果日志中有multi_injection_info，优先使用
         if multi_injection_info:
             for i, inj_info in enumerate(multi_injection_info):
                 error_type = inj_info.get("fm_error_type", "")
                 injection_strategy = inj_info.get("injection_strategy", "")
                 
-                # 如果injection_log中没有错误类型，尝试从文件名解析的信息获取
                 if not error_type and i < len(error_types):
                     error_type = error_types[i]
                 if not injection_strategy and i < len(injection_strategies):
@@ -250,7 +226,6 @@ class AgentVerseProcessor(FrameworkDataProcessor):
                 }
                 faulty_agents.append(faulty_agent)
         else:
-            # 从文件名解析的信息构建faulty_agents
             length = max(len(agent_names), len(error_types), len(injection_strategies), 1)
             for i in range(length):
                 agent_name = agent_names[i] if i < len(agent_names) else "Unknown"
@@ -268,7 +243,6 @@ class AgentVerseProcessor(FrameworkDataProcessor):
             "faulty_agents": faulty_agents
         }
         
-        # 构建ground_truth
         ground_truth = {
             "correct_answer": sample.get("gt", ""),
             "injected_agents": [
@@ -312,30 +286,23 @@ class DylanProcessor(FrameworkDataProcessor):
         error_type = file_params.get("error_type", "")
         injection_type = file_params.get("injection_type", "")
         
-        # 解析智能体名称 - Dylan格式: assistant3-assistant2-assistant4-assistant1
         agent_names = []
         if agent_type:
-            # 按-分割，每个部分包含角色名和编号
             parts = agent_type.split("-")
             for part in parts:
                 if part:
-                    # 保留完整的agent名称（包括数字）
                     agent_names.append(part)
         
-        # 解析错误类型 - 格式: FM-1.4-FM-3.3-FM-2.2-FM-3.2
         error_types = []
         if error_type:
             import re
             matches = re.findall(r'FM-\d+\.\d+', error_type)
             error_types = matches if matches else [error_type]
         
-        # 解析注入策略 - 格式: prompt_injection-prompt_injection-response_corruption-response_corruption
         injection_strategies = []
         if injection_type:
-            # 先移除末尾的数量标识（如n4）
             import re
             cleaned_type = re.sub(r'_?n\d+$', '', injection_type)
-            # 按-分割
             parts = cleaned_type.split("-")
             injection_strategies = [part for part in parts if part]
         
@@ -344,10 +311,8 @@ class DylanProcessor(FrameworkDataProcessor):
     def process_sample(self, sample: Dict[str, Any], file_params: Dict[str, Any], line_number: int) -> UnifiedTrainingData:
         injection_log = sample.get("injection_log", {})
         
-        # 解析文件名中的多智能体信息
         agent_names, error_types, injection_strategies = self.parse_multi_agent_info(file_params)
         
-        # 构建metadata
         metadata = {
             "framework": "dylan",
             "benchmark": file_params.get("benchmark", ""),
@@ -357,28 +322,22 @@ class DylanProcessor(FrameworkDataProcessor):
             "task_type": self._infer_task_type(sample.get("tag", []))
         }
         
-        # 构建输入 - 修复conversation_history为空的问题
         conversation_history = []
-        # 优先使用conversation_history字段，如果为空则使用full_history
         history = injection_log.get("conversation_history", [])
         if not history:
             history = injection_log.get("full_history", [])
         
         for i, entry in enumerate(history):
-            # 从entry中提取agent信息
             agent_id = entry.get("agent_id", "")
             role = entry.get("role", "")
             role_index = entry.get("role_index", "")
-            if role_index != "":  # 修复：role_index为0时也需要处理
+            if role_index != "":
                 role_index = int(role_index) + 1
             content = entry.get("content", entry.get("response", ""))
             
-            # 标准化agent名称 - 保留原始编号
             if agent_id:
-                # 如果agent_id包含数字，保留完整名称
                 std_agent_name = agent_id.replace(" ", "")
             elif role:
-                # 如果只有role，使用role
                 std_agent_name = role.replace(" ", "")
             else:
                 std_agent_name = f"Assistant{i+1}"
@@ -391,7 +350,7 @@ class DylanProcessor(FrameworkDataProcessor):
                 "agent_name": std_agent_name,
                 "agent_role": std_agent_name,
                 "content": content,
-                "phase": "reasoning"  # Dylan主要是推理阶段
+                "phase": "reasoning"
             }
             conversation_history.append(std_entry)
         
@@ -400,20 +359,16 @@ class DylanProcessor(FrameworkDataProcessor):
             "conversation_history": conversation_history
         }
         
-        # 构建输出 - 支持多智能体注入，修复agent名称问题
         faulty_agents = []
         if agent_names:
-            # 从文件名解析的信息构建faulty_agents
             length = max(len(agent_names), len(error_types), len(injection_strategies), 1)
             for i in range(length):
                 agent_name = agent_names[i] if i < len(agent_names) else "Unknown"
                 error_type = error_types[i] if i < len(error_types) else ""
                 injection_strategy = injection_strategies[i] if i < len(injection_strategies) else ""
                 
-                # 对于HumanEval + Dylan，去掉agent名称末尾的编号
                 if file_params.get("benchmark", "").lower() == "humaneval":
                     import re
-                    # 去掉末尾的数字，如 "assistant3" -> "assistant"
                     agent_name = re.sub(r'\d+$', '', agent_name)
                 
                 faulty_agent = {
@@ -423,13 +378,10 @@ class DylanProcessor(FrameworkDataProcessor):
                 }
                 faulty_agents.append(faulty_agent)
         else:
-            # 单智能体注入，使用日志中的信息
             injected_role = injection_log.get("injected_role", "Unknown")
             
-            # 对于HumanEval + Dylan，去掉agent名称末尾的编号
             if file_params.get("benchmark", "").lower() == "humaneval":
                 import re
-                # 去掉末尾的数字，如 "Assistant 1" -> "Assistant"
                 injected_role = re.sub(r'\s*\d+$', '', injected_role)
             
             faulty_agent = {
@@ -443,7 +395,6 @@ class DylanProcessor(FrameworkDataProcessor):
             "faulty_agents": faulty_agents
         }
         
-        # 构建ground_truth
         ground_truth = {
             "correct_answer": sample.get("gt", ""),
             "injected_agents": [
@@ -486,27 +437,21 @@ class LLMDebateProcessor(FrameworkDataProcessor):
         error_type = file_params.get("error_type", "")
         injection_type = file_params.get("injection_type", "")
         
-        # 解析智能体名称 - LLM Debate格式: agent3-agent1-agent2 或 agent3-aggregator4-agent1
         agent_names = []
         if agent_type:
-            # 按-分割，每个部分包含角色名和编号
             parts = agent_type.split("-")
             agent_names = [part.replace(" ", "").lower() for part in parts]
         
-        # 解析错误类型 - 格式: FM-2.4-FM-1.1-FM-3.2
         error_types = []
         if error_type:
             import re
             matches = re.findall(r'FM-\d+\.\d+', error_type)
             error_types = matches if matches else [error_type]
         
-        # 解析注入策略 - 格式: response_corruption-response_corruption-prompt_injection
         injection_strategies = []
         if injection_type:
-            # 先移除末尾的数量标识（如n3）
             import re
             cleaned_type = re.sub(r'_?n\d+$', '', injection_type)
-            # 按-分割
             parts = cleaned_type.split("-")
             injection_strategies = [part for part in parts if part]
         
@@ -515,10 +460,8 @@ class LLMDebateProcessor(FrameworkDataProcessor):
     def process_sample(self, sample: Dict[str, Any], file_params: Dict[str, Any], line_number: int) -> UnifiedTrainingData:
         injection_log = sample.get("injection_log", {})
         
-        # 解析文件名中的多智能体信息
         agent_names, error_types, injection_strategies = self.parse_multi_agent_info(file_params)
         
-        # 构建metadata
         metadata = {
             "framework": "llm_debate",
             "benchmark": file_params.get("benchmark", ""),
@@ -528,16 +471,13 @@ class LLMDebateProcessor(FrameworkDataProcessor):
             "task_type": self._infer_task_type(sample.get("tag", []))
         }
         
-        # 构建输入
         conversation_history = []
         history = injection_log.get("full_history", [])
         
         for i, entry in enumerate(history):
-            # 从entry中提取agent信息
             role = entry.get("role", "").replace(" ", "")
             content = entry.get("content", "")
             
-            # 保留原始agent名称，不进行标准化
             std_agent_name = role if role else f"Agent{i+1}"
             std_agent_name = std_agent_name.replace("Agent", "Assistant")
             std_entry = {
@@ -545,7 +485,7 @@ class LLMDebateProcessor(FrameworkDataProcessor):
                 "agent_name": std_agent_name,
                 "agent_role": std_agent_name,
                 "content": content,
-                "phase": "discussion"  # LLM Debate主要是讨论阶段
+                "phase": "discussion"
             }
             conversation_history.append(std_entry)
         
@@ -555,10 +495,8 @@ class LLMDebateProcessor(FrameworkDataProcessor):
             "final_output": self.extract_final_output(injection_log)
         }
         
-        # 构建输出 - 支持多智能体注入，修复agent名称问题
         faulty_agents = []
         if agent_names:
-            # 从文件名解析的信息构建faulty_agents
             length = max(len(agent_names), len(error_types), len(injection_strategies), 1)
             for i in range(length):
                 agent_name = agent_names[i] if i < len(agent_names) else "Unknown"
@@ -574,11 +512,9 @@ class LLMDebateProcessor(FrameworkDataProcessor):
                 }
                 faulty_agents.append(faulty_agent)
         else:
-            # 单智能体注入，使用日志中的信息
             error_type = injection_log.get("fm_error_type", "")
             injection_strategy = injection_log.get("injection_strategy", "")
             
-            # 如果injection_log中没有，尝试从文件名解析获取
             if not error_type:
                 error_type = file_params.get("error_type", "")
             if not injection_strategy:
@@ -595,7 +531,6 @@ class LLMDebateProcessor(FrameworkDataProcessor):
             "faulty_agents": faulty_agents
         }
         
-        # 构建ground_truth
         ground_truth = {
             "correct_answer": sample.get("gt", ""),
             "injected_agents": [
@@ -638,34 +573,25 @@ class MacNetProcessor(FrameworkDataProcessor):
         error_type = file_params.get("error_type", "")
         injection_type = file_params.get("injection_type", "")
         
-        # 解析智能体名称
         agent_names = []
-        # 使用正则表达式来正确分割，处理node-1这样的情况
         import re
-        # 匹配node后跟数字或-数字的模式
         matches = re.findall(r'node-?\d+', agent_type)
         agent_names = matches
         
-        # 解析错误类型
         error_types = []
         if error_type:
             if error_type.count("FM-") > 1:
-                # 多个错误类型，按FM-分割
                 import re
-                # 使用正则表达式找到所有FM-X.X格式的错误类型
                 matches = re.findall(r'FM-\d+\.\d+', error_type)
                 error_types = matches
             else:
                 error_types = [error_type]
         
-        # 解析注入策略
         injection_strategies = []
         if injection_type:
-            # 先移除末尾的数量标识（如n3）
             import re
             cleaned_type = re.sub(r'_?n\d+$', '', injection_type)
             
-            # 按-分割，每个部分就是一个完整的策略
             parts = cleaned_type.split("-")
             injection_strategies = [part for part in parts if part and not (part.startswith("n") and part[1:].isdigit())]
         
@@ -674,31 +600,28 @@ class MacNetProcessor(FrameworkDataProcessor):
     def process_sample(self, sample: Dict[str, Any], file_params: Dict[str, Any], line_number: int) -> UnifiedTrainingData:
         injection_log = sample.get("injection_log", {})
         
-        # 解析文件名中的多智能体信息
         agent_names, error_types, injection_strategies = self.parse_multi_agent_info(file_params)
         
-        # 构建metadata
         metadata = {
             "framework": "macnet",
             "benchmark": file_params.get("benchmark", ""),
             "model": file_params.get("model", ""),
             "num_agents": injection_log.get("total_llm_calls", len(agent_names)),
-            "num_injected_agents": len(agent_names),  # 从文件名解析的注入agent数量
+            "num_injected_agents": len(agent_names),
             "task_type": self._infer_task_type(sample.get("tag", []))
         }
         
-        # 构建输入
         conversation_history = []
         llm_calls = injection_log.get("llm_call_history", [])
         
         for i, call in enumerate(llm_calls):
-            if not call.get("injected", False):  # 只包含非注入的调用
+            if not call.get("injected", False):
                 std_entry = {
                     "step": i + 1,
                     "agent_name": self.standardize_agent_name(f"node{call.get('node_id', '')}", "macnet"),
-                    "agent_role": call.get("system_prompt", "")[:50],  # 取前50字符作为角色描述
+                    "agent_role": call.get("system_prompt", "")[:50],
                     "content": call.get("response", ""),
-                    "phase": "reasoning"  # MacNet主要是推理阶段
+                    "phase": "reasoning"
                 }
                 conversation_history.append(std_entry)
         
@@ -708,7 +631,6 @@ class MacNetProcessor(FrameworkDataProcessor):
             "final_output": self.extract_final_output(injection_log)
         }
         
-        # 构建输出 - 使用解析出的信息
         faulty_agents = []
         
         for i, agent_name in enumerate(agent_names):
@@ -726,7 +648,6 @@ class MacNetProcessor(FrameworkDataProcessor):
             "faulty_agents": faulty_agents
         }
         
-        # 构建ground_truth
         ground_truth = {
             "correct_answer": sample.get("gt", ""),
             "injected_agents": [
@@ -766,23 +687,19 @@ class NormalSampleProcessor(FrameworkDataProcessor):
         injection_log = sample.get("injection_log", {})
         framework = injection_log.get("framework", file_params.get("framework", "unknown"))
         
-        # 构建metadata
         metadata = {
             "framework": framework,
             "benchmark": file_params.get("benchmark", ""),
             "model": file_params.get("model", "gpt-4o-mini"),
             "num_agents": self._estimate_num_agents(injection_log),
-            "num_injected_agents": 0,  # 正样本没有注入
+            "num_injected_agents": 0,
             "task_type": self._infer_task_type_from_query(sample.get("query", ""))
         }
         
-        # 构建输入 - 从injection_log的full_history中提取
         conversation_history = []
         full_history = injection_log.get("full_history", [])
         
-        # 如果full_history为空，尝试从其他字段获取历史记录
         if not full_history:
-            # 对于MacNet，可能没有详细的历史记录，创建一个简化的条目
             if framework == "macnet":
                 std_entry = {
                     "step": 1,
@@ -808,12 +725,10 @@ class NormalSampleProcessor(FrameworkDataProcessor):
             "conversation_history": conversation_history
         }
         
-        # 构建输出 - 正样本没有故障agent
         output_data = {
-            "faulty_agents": []  # 正样本没有故障agent
+            "faulty_agents": []
         }
         
-        # 构建ground_truth
         response = sample.get("response", {})
         if isinstance(response, dict):
             final_response = response.get("response", str(response))
@@ -822,9 +737,9 @@ class NormalSampleProcessor(FrameworkDataProcessor):
         
         ground_truth = {
             "correct_answer": sample.get("gt", final_response),
-            "injected_agents": [],  # 正样本没有注入agent
-            "is_injection_successful": False,  # 正样本不是注入实验
-            "is_normal_sample": True  # 标记为正样本
+            "injected_agents": [],
+            "is_injection_successful": False,
+            "is_normal_sample": True
         }
         
         return UnifiedTrainingData(
@@ -841,7 +756,6 @@ class NormalSampleProcessor(FrameworkDataProcessor):
         if not full_history:
             return 1
         
-        # 统计不同的agent_name数量
         agent_names = set()
         for entry in full_history:
             agent_name = entry.get("agent_name", entry.get("role", "Unknown"))
@@ -862,7 +776,6 @@ class NormalSampleProcessor(FrameworkDataProcessor):
     
     def _infer_phase_from_entry(self, entry: Dict[str, Any], framework: str) -> str:
         """从条目推断对话阶段"""
-        # 根据框架和entry内容推断阶段
         if framework == "llm_debate":
             return "discussion"
         elif framework in ["dylan", "dylan_math", "dylan_humaneval", "dylan_mmlu"]:
@@ -889,12 +802,11 @@ class DatasetBuilder:
     def __init__(self, schema_path: str, input_dir: str, output_dir: str, normal_samples_dir: str = None, separate_datasets: bool = False, only_normal: bool = False, only_negative: bool = False):
         self.input_dir = input_dir
         self.output_dir = output_dir
-        self.normal_samples_dir = normal_samples_dir  # 正样本目录
-        self.separate_datasets = separate_datasets  # 是否分开保存正负样本
-        self.only_normal = only_normal  # 只处理正样本
-        self.only_negative = only_negative  # 只处理负样本
+        self.normal_samples_dir = normal_samples_dir
+        self.separate_datasets = separate_datasets
+        self.only_normal = only_normal
+        self.only_negative = only_negative
         
-        # 初始化不同框架的处理器
         self.processors = {
             "agentverse": AgentVerseProcessor(schema_path),
             "dylan": DylanProcessor(schema_path),
@@ -902,7 +814,6 @@ class DatasetBuilder:
             "macnet": MacNetProcessor(schema_path)
         }
         
-        # 正样本处理器
         self.normal_processor = NormalSampleProcessor(schema_path)
         
         os.makedirs(output_dir, exist_ok=True)
@@ -924,13 +835,11 @@ class DatasetBuilder:
         """构建统一格式的数据集"""
         print("🚀 开始构建统一格式的训练数据集...")
         
-        # 使用analyze_injection_errors获取答题错误的数据
         all_benchmark_errors = {}
         
-        if not self.only_normal:  # 只有在不是只处理正样本时才分析注入错误数据
+        if not self.only_normal:
             print("📊 分析注入实验错误数据...")
             
-            # 获取所有benchmark目录
             benchmark_dirs = [d for d in os.listdir(self.input_dir) if
                                 os.path.isdir(os.path.join(self.input_dir, d)) and d !=
                                 "smoagents_logs"]
@@ -944,13 +853,12 @@ class DatasetBuilder:
         else:
             print("⏭️ 跳过注入错误数据分析（--only_normal 模式）")
         
-        # 处理答题错误的数据（这些是我们要的训练数据）
         negative_samples = []
         total_processed = 0
         
-        if not self.only_normal:  # 如果不是只处理正样本，则处理负样本
+        if not self.only_normal:
             for benchmark, result in all_benchmark_errors.items():
-                answer_errors = result['answer_errors']  # 只要答题错误的数据
+                answer_errors = result['answer_errors']
                 print(f"  📝 {benchmark}: 找到 {len(answer_errors)} 个答题错误样本")
                 
                 for error_sample in answer_errors:
@@ -961,7 +869,6 @@ class DatasetBuilder:
                         if framework in self.processors:
                             processor = self.processors[framework]
                             
-                            # 处理样本
                             unified_sample = processor.process_sample(
                                 error_sample, 
                                 file_params, 
@@ -982,7 +889,6 @@ class DatasetBuilder:
         else:
             print("⏭️ 跳过负样本处理（--only_normal 模式）")
         
-        # 处理正样本（如果提供了正样本目录）
         positive_samples = []
         if not self.only_negative and self.normal_samples_dir and os.path.exists(self.normal_samples_dir):
             print(f"\n📋 处理正样本数据...")
@@ -993,7 +899,6 @@ class DatasetBuilder:
         elif not self.normal_samples_dir:
             print("⚠️ 未提供正样本目录，跳过正样本处理")
         
-        # 根据设置保存数据集
         if self.separate_datasets:
             print(f"🎯 分别保存正负样本数据集...")
             if negative_samples:
@@ -1003,7 +908,6 @@ class DatasetBuilder:
                 print(f"  💾 保存正样本数据集 ({len(positive_samples)} 个样本)")  
                 self.save_dataset(positive_samples, suffix="positive")
         else:
-            # 合并保存
             unified_data = negative_samples + positive_samples
             print(f"🎯 数据集构建完成！总计 {len(unified_data)} 个样本")
             self.save_dataset(unified_data)
@@ -1012,23 +916,19 @@ class DatasetBuilder:
         """处理正样本数据"""
         normal_count = 0
         
-        # 遍历正样本目录
         for root, dirs, files in os.walk(self.normal_samples_dir):
             for file in files:
                 if file.endswith('.jsonl'):
                     file_path = os.path.join(root, file)
                     
-                    # 从文件路径推断framework和benchmark
                     rel_path = os.path.relpath(file_path, self.normal_samples_dir)
                     path_parts = rel_path.split(os.sep)
                     
-                    # 假设路径格式为: benchmark/model/framework/filename.jsonl
                     if len(path_parts) >= 3:
                         benchmark = path_parts[0]
                         model = path_parts[1] 
                         framework_part = path_parts[2]
                         
-                        # 从文件名推断框架
                         framework = self.get_framework_from_filename(file)
                         if framework == "unknown":
                             framework = framework_part
@@ -1047,7 +947,6 @@ class DatasetBuilder:
                                         try:
                                             sample = json.loads(line)
                                             
-                                            # 检查是否是成功的样本且包含injection_log
                                             if (sample.get("status") == "success" and 
                                                 "injection_log" in sample):
                                                 
@@ -1073,7 +972,6 @@ class DatasetBuilder:
         """保存数据集到不同格式"""
         print("💾 保存数据集...")
         
-        # 转换为字典格式
         data_dicts = []
         for item in unified_data:
             data_dict = {
@@ -1085,24 +983,20 @@ class DatasetBuilder:
             }
             data_dicts.append(data_dict)
         
-        # 根据后缀生成文件名
         if suffix:
             base_name = f"unified_training_dataset_{suffix}"
         else:
             base_name = "unified_training_dataset_easy"
         
-        # 保存为JSONL格式（适合大数据集）
         jsonl_path = os.path.join(self.output_dir, f"{base_name}.jsonl")
         with open(jsonl_path, 'w', encoding='utf-8') as f:
             for data_dict in data_dicts:
                 f.write(json.dumps(data_dict, ensure_ascii=False) + '\n')
         
-        # 保存为JSON格式（方便查看）
         json_path = os.path.join(self.output_dir, f"{base_name}.json")
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(data_dicts, f, ensure_ascii=False, indent=2)
         
-        # 生成数据集统计报告
         stats_path = self.generate_statistics(data_dicts, suffix)
         
         print(f"✅ 数据集已保存到:")
@@ -1129,43 +1023,34 @@ class DatasetBuilder:
             metadata = data["metadata"]
             output = data["output"]
             
-            # 框架分布
             framework = metadata["framework"]
             stats["按框架分布"][framework] = stats["按框架分布"].get(framework, 0) + 1
             
-            # 数据集分布
             benchmark = metadata["benchmark"]
             stats["按数据集分布"][benchmark] = stats["按数据集分布"].get(benchmark, 0) + 1
             
-            # 任务类型分布
             task_type = metadata["task_type"]
             stats["按任务类型分布"][task_type] = stats["按任务类型分布"].get(task_type, 0) + 1
             
-            # 错误类型分布
             for agent in output["faulty_agents"]:
                 error_type = agent["error_type"]
                 stats["按错误类型分布"][error_type] = stats["按错误类型分布"].get(error_type, 0) + 1
                 
-                # 注入策略分布
                 strategy = agent["injection_strategy"]
                 stats["按注入策略分布"][strategy] = stats["按注入策略分布"].get(strategy, 0) + 1
             
-            # 多智能体注入分布
             num_injected = metadata["num_injected_agents"]
             stats["多智能体注入分布"][str(num_injected)] = stats["多智能体注入分布"].get(str(num_injected), 0) + 1
         
-        # 根据后缀生成统计报告文件名
         if suffix:
             stats_filename = f"dataset_statistics_{suffix}.json"
         else:
             stats_filename = "dataset_statistics_easy.json"
         
-        # 保存统计报告
         stats_path = os.path.join(self.output_dir, stats_filename)
         with open(stats_path, 'w', encoding='utf-8') as f:
             json.dump(stats, f, ensure_ascii=False, indent=2)
         
-        # 打印统计摘要
         print("\n📈 数据集统计摘要:")
         print(f"  总样本数: {stats['总样本数']}")
         print(f"  框架分布: {stats['按框架分布']}")
@@ -1189,7 +1074,6 @@ def main():
     
     args = parser.parse_args()
     
-    # 构建数据集
     args.normal_samples_dir = "results_right"
     # args.only_normal = True
     args.separate = True

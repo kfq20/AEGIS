@@ -67,11 +67,9 @@ class MAS():
         if "gemini-2.5-flash" in model_name:
             request_dict["reasoning_effort"] = reasoning_effort
 
-        # 根据是否有 base_url 来决定初始化方式
         if model_url and model_url.strip():
             llm = openai.OpenAI(base_url=model_url, api_key=api_key)
         else:
-            # 对于 Azure OpenAI 或其他不需要 base_url 的情况
             if provider and provider == "azure":
                 llm = openai.AzureOpenAI(
                     api_key=api_key,
@@ -79,7 +77,6 @@ class MAS():
                     api_version=model_dict.get("api_version", "2025-03-01-preview")
                 )
             else:
-                # 默认 OpenAI 客户端
                 llm = openai.OpenAI(api_key=api_key)
         
         try:

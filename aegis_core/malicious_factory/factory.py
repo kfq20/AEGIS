@@ -72,10 +72,8 @@ class MaliciousAgentFactory:
         """Method 2: Output Corruption - 获取原始输出后腐蚀"""
         print(f"*** Method 2 (Corruption) injection activated ***")
         
-        # 获取原始输出
         clean_output = original_call_func()
         
-        # 构建 corruption prompt
         corruption_template = malicious_agent.prompt
         task_input = context.get('task_input', '')
         
@@ -85,7 +83,6 @@ class MaliciousAgentFactory:
             "{original_output_placeholder}", clean_output
         )
         
-        # 清理 prompt 并调用 LLM
         final_corruption_prompt = re.sub(
             r'\[CORRUPTION_TASK_V2\].*?---', '', 
             filled_prompt, flags=re.DOTALL

@@ -18,13 +18,11 @@ class FMAgentVerseWrapper(SystemWrapper):
             raise ValueError("No LLM configuration found for the specified model name.")
         
         self.llm = create_llm_instance(llm_config)
-        # 动态选择 AgentVerse 变体
         method_name = exp_config['system_under_test']['name']  # "agentverse"
-        dataset_name = exp_config.get('benchmark_name', None)  # 如 "GSM8K", "MATH", "MMLU", "HumanEval"
+        dataset_name = exp_config.get('benchmark_name', None)
         MAS_CLASS = get_method_class(method_name, dataset_name)
         self.agentverse_instance = MAS_CLASS(general_config, method_config_name=None)
         
-        # 创建FM恶意注入工厂
         self.fm_factory = FMMaliciousFactory(llm=self.llm)
         
         self.call_count = 0
@@ -71,21 +69,17 @@ class FMAgentVerseWrapper(SystemWrapper):
             self.call_count += 1
             print(f"[FMAgentVerseWrapper Multi] call_llm count: {self.call_count}")
             
-            # 获取消息内容来判断当前阶段和角色
             messages = args[2] if len(args) > 2 else kwargs.get('messages', [])
             current_role, current_role_index = self._determine_current_role_and_phase(messages)
             
-            # 记录对话历史
             self._record_conversation_entry(current_role, current_role_index, messages)
             
-            # 检查是否应该注入
             injection_key = (current_role, current_role_index)
             if injection_key not in injection_map:
                 response = original_llm_call(*args, **kwargs)
                 self._record_response(current_role, current_role_index, response)
                 return response
             
-            # 执行注入
             injection_info = injection_map[injection_key]
             malicious_agent = injection_info['agent']
             target = injection_info['target']
@@ -93,17 +87,14 @@ class FMAgentVerseWrapper(SystemWrapper):
             print(f"*** FM Multi-Malicious Agent Activated on '{current_role}' (index {current_role_index}) ***")
             print(f"    Error Type: {malicious_agent.fm_error_type.value}, Strategy: {malicious_agent.injection_strategy.value}")
             
-            # 创建模拟agent对象提取上下文
             mock_agent = self._create_mock_agent(current_role, current_role_index)
             agent_context = self.fm_factory.extract_agent_context(
                 mock_agent,
                 {"name": current_role, "description": f"AgentVerse {current_role}"}
             )
             
-            # 更新malicious_agent的context
             malicious_agent.agent_context = agent_context
             
-            # 应用注入策略
             task_input = messages[-1]['content'] if messages else ""
             
             try:
@@ -216,14 +207,11 @@ class FMAgentVerseWrapper(SystemWrapper):
             self.call_count += 1
             print(f"[FMAgentVerseWrapper] call_llm count: {self.call_count}")
             
-            # 获取消息内容来判断当前阶段和角色
             messages = args[2] if len(args) > 2 else kwargs.get('messages', [])
             current_role, current_role_index = self._determine_current_role_and_phase(messages)
             
-            # 记录对话历史
             self._record_conversation_entry(current_role, current_role_index, messages)
             
-            # 判断是否应该注入恶意内容
             should_inject = (current_role == target_role and current_role_index == target_role_index)
             
             if not should_inject:
@@ -234,17 +222,14 @@ class FMAgentVerseWrapper(SystemWrapper):
             print(f"*** FM Malicious Agent Activated on '{current_role}' (index {current_role_index}) ***")
             print(f"    Error Type: {malicious_agent.fm_error_type.value}, Strategy: {malicious_agent.injection_strategy.value}")
             
-            # 创建模拟agent对象提取上下文
             mock_agent = self._create_mock_agent(current_role, current_role_index)
             agent_context = self.fm_factory.extract_agent_context(
                 mock_agent,
                 {"name": current_role, "description": f"AgentVerse {current_role}"}
             )
             
-            # 更新malicious_agent的context
             malicious_agent.agent_context = agent_context
             
-            # 使用FM工厂执行恶意注入
             task_input = messages[-1]['content'] if messages else ""
             
             try:
@@ -338,31 +323,24 @@ class FMAgentVerseWrapper(SystemWrapper):
         if not messages:
             return "Unknown", 0
         
-        # 检查系统消息或用户消息的内容来判断当前角色
         content = ""
         for msg in messages:
             content += msg.get('content', '') + " "
         content = content.lower()
         
-        # 根据调用次数和内容特征判断角色
         if self.call_count == 1:
-            # 第一次调用通常是角色分配
             self.current_phase = "role_assignment"
             return "RoleAssigner", 0
         
-        # 检查是否是评估器调用（通常包含"evaluate"、"score"等关键词）
         if any(keyword in content for keyword in ["evaluate", "score", "correctness", "assessment"]):
             self.current_phase = "evaluation"
             return "Evaluator", 0
         
-        # 检查是否是批评者调用（包含"review"、"critic"、"feedback"等关键词）
         if any(keyword in content for keyword in ["review", "critic", "feedback", "opinion", "assessment"]):
-            # 批评者可能有多个，根据cnt_agents计算索引
             critic_index = self._calculate_critic_index()
             self.current_phase = "criticism"
             return "Critic", critic_index
         
-        # 其他情况认为是解决者调用
         solver_index = self._calculate_solver_index()
         self.current_phase = "solving"
         return "Solver", solver_index
@@ -370,8 +348,6 @@ class FMAgentVerseWrapper(SystemWrapper):
     def _calculate_critic_index(self) -> int:
         """计算当前批评者的索引"""
         cnt_agents = getattr(self.agentverse_instance, 'cnt_agents', 3)
-        # 简化计算：假设批评者按顺序调用
-        # 实际索引可能需要更复杂的逻辑
         return (self.call_count - 2) % (cnt_agents - 1) if cnt_agents > 1 else 0
     
     def _calculate_solver_index(self) -> int:
@@ -391,7 +367,6 @@ class FMAgentVerseWrapper(SystemWrapper):
                 self.model_type = "LLM"
                 self.chat_history = []
                 
-                # 根据角色设置系统消息
                 if role_name == "RoleAssigner":
                     self.system_message = "You are a role assigner responsible for assigning appropriate roles to agents based on the given query."
                 elif role_name == "Solver":
@@ -419,12 +394,10 @@ class FMAgentVerseWrapper(SystemWrapper):
     
     def _record_response(self, role: str, role_index: int, response: str):
         """记录响应"""
-        # 找到对应的对话条目并添加响应
         for entry in self.conversation_history:
             if entry["call_count"] == self.call_count:
                 entry["response"] = response
                 
-                # 如果是角色分配器的响应，尝试解析角色描述
                 if role == "RoleAssigner":
                     try:
                         role_descriptions = self.agentverse_instance.extract_role_descriptions(response)

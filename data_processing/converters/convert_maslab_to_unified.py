@@ -31,28 +31,24 @@ def parse_chatdev_log_to_conversation_history(log_string: str) -> dict:
     conversation_history = []
     step_counter = 1
 
-    # 正则表达式，用于匹配每一次对话的开始标志、角色、阶段和内容。
-    # (?s) 标志让 '.' 可以匹配换行符，这对于捕获多行内容至关重要。
     pattern = re.compile(
-        r"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} INFO\] "  # 1. 匹配时间戳前缀
-        r"([\w\s]+?): "                                  # 2. 捕获 Agent 名称 (例如 "Chief Product Officer")
-        r"\*\*.*? on : ([\w]+), turn \d+\*\*"             # 3. 匹配元信息并捕获 Phase 名称 (例如 "DemandAnalysis")
-        r"(?s)(.*?)"                                     # 4. 捕获该次对话的全部内容
-        r"(?=\n\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} INFO\] |\Z)", # 5. 匹配直到下一个时间戳日志行或字符串结尾
+        r"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} INFO\] "
+        r"([\w\s]+?): "
+        r"\*\*.*? on : ([\w]+), turn \d+\*\*"
+        r"(?s)(.*?)"
+        r"(?=\n\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} INFO\] |\Z)",
         re.MULTILINE
     )
 
-    # 查找所有匹配的对话轮次
     for match in pattern.finditer(log_string):
         agent_name = match.group(1).strip()
         phase = match.group(2).strip()
         content = match.group(3).strip()
 
-        # 构建并添加当前对话轮次的字典
         conversation_step = {
             "step": step_counter,
             "agent_name": agent_name,
-            "agent_role": agent_name,  # 根据格式要求，role 和 name 相同
+            "agent_role": agent_name,
             "content": content,
             "phase": phase
         }
@@ -74,23 +70,19 @@ def parse_metagpt_traj_to_conversation_history(log_string: str) -> dict:
     conversation_history = []
     step_counter = 1
 
-    # 根据 MetaGPT Agent 的名称推断其所处的开发阶段
     phase_mapping = {
         "Human": "Requirement",
         "SimpleCoder": "Coding",
         "SimpleTester": "Testing",
         "SimpleReviewer": "Reviewing",
-        # 可以根据需要添加其他角色到阶段的映射
     }
 
-    # 1. 清理日志，只保留核心通信内容
     log_content_match = re.search(r"===(.*)===", log_string, re.DOTALL)
     if not log_content_match:
         return {"conversation_history": []}
     
     clean_log = log_content_match.group(1).strip()
     
-    # 2. 使用长横线作为分隔符，将日志分割成独立的对话块
     blocks = clean_log.split("--------------------------------------------------------------------------------")
 
     for block in blocks:
@@ -101,8 +93,6 @@ def parse_metagpt_traj_to_conversation_history(log_string: str) -> dict:
         agent_name = ""
         content = ""
 
-        # 3. 根据块的特征，分别处理 "Human" 的初始需求和其他 Agent 的消息
-        # 情况 A: 处理 Human 的初始需求
         if "FROM: Human" in block:
             agent_match = re.search(r"FROM: (\w+)", block)
             content_match = re.search(r"CONTENT:\n(.*)", block, re.DOTALL)
@@ -110,20 +100,16 @@ def parse_metagpt_traj_to_conversation_history(log_string: str) -> dict:
                 agent_name = agent_match.group(1).strip()
                 content = content_match.group(1).strip()
         
-        # 情况 B: 处理其他 Agent 的消息
         else:
             message_part_match = re.search(r"NEW MESSAGES:\n\n(.*)", block, re.DOTALL)
             if message_part_match:
                 message_part = message_part_match.group(1).strip()
-                # Agent 名称通常是内容的第一行，以冒号结尾
                 if ':' in message_part:
                     parts = message_part.split(':', 1)
                     agent_name = parts[0].strip()
                     content = parts[1].strip()
 
-        # 4. 如果成功提取，则构建字典并添加到历史记录中
         if agent_name and content:
-            # 使用映射来获取 phase，如果找不到则默认使用 agent_name
             phase = phase_mapping.get(agent_name, agent_name) 
             
             conversation_step = {

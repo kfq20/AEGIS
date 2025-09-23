@@ -27,7 +27,6 @@ class AutoGenWrapper(SystemWrapper):
         
         # NOTE: self.llm is still an async-first client, but we will call it synchronously.
         self.llm = create_llm_instance(llm_config)
-        # 动态选择 AutoGen 变体
         method_name = exp_config['system_under_test']['name']  # "autogen"
         dataset_name = exp_config.get('benchmark_name', None)
         MAS_CLASS = get_method_class(method_name, dataset_name)
@@ -54,7 +53,6 @@ class AutoGenWrapper(SystemWrapper):
         
         call_counters = {"assistant_agent": 0, "user_proxy_agent": 0}
 
-        # 创建 factory 实例用于注入逻辑
         from malicious_factory import MaliciousAgentFactory
         factory = MaliciousAgentFactory(llm=self.llm)
 
@@ -93,7 +91,6 @@ class AutoGenWrapper(SystemWrapper):
             # 4. --- Execute Malicious Logic ---
             print(f"*** Malicious Agent Activated on '{speaker_role}' (Call #{current_call_count}) ***")
             
-            # 使用 factory 的统一注入逻辑
             task_input = messages[-1]['content']
             response = factory.inject_malicious_behavior(
                 lambda: original_llm_call(args[0], args[1], messages),
@@ -102,7 +99,6 @@ class AutoGenWrapper(SystemWrapper):
                 messages=messages
             )
             
-            # 确保返回格式正确
             if isinstance(response, str):
                 return {'response': response}
             else:

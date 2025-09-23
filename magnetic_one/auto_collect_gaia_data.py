@@ -111,7 +111,6 @@ def check_experiment_exists(output_dir: str, level: str, dataset_type: str,
     if not os.path.exists(output_dir):
         return False
     
-    # 构建预期的文件名（与 gaia.py 中的命名规则一致）
     filename = f"level_{level}_{dataset_type}_{target_agent}_{fm_error_type}_{injection_strategy}.json"
     filepath = os.path.join(output_dir, filename)
     
@@ -155,7 +154,7 @@ def run_single_experiment(level: str, dataset_type: str, target_agent: str,
         "--level", level,
         "--on", dataset_type,
         "--capture-mode", capture_mode,
-        "--limit", str(batch_size)  # 🎯 每次实验处理指定数量的任务
+        "--limit", str(batch_size)
     ]
     
     if randomize:
@@ -228,20 +227,17 @@ def run_batch_collection(level: str, dataset_type: str, target_count: int,
         print(f"🎲 Random config: {target_agent} + {fm_error_type} + {injection_strategy}")
         print(f"📋 Target: Level {level} {dataset_type} dataset (batch_size: {batch_size})")
         
-        # 🔄 断点重续检查：如果该配置已存在足够的数据，跳过
         if check_experiment_exists(output_dir, level, dataset_type, target_agent, 
                                  fm_error_type, injection_strategy, min_tasks=batch_size):
             print(f"  ⏭️  配置已存在足够数据，跳过实验 {experiment_num}")
             skip_count += 1
             experiment_num += 1
             
-            # 如果连续跳过太多次，可能需要增加随机性或停止
             if skip_count >= 50:
                 print(f"  ⚠️  连续跳过 {skip_count} 个实验，可能大部分配置已完成")
                 break
             continue
         
-        # 重置跳过计数
         skip_count = 0
         
         # Generate metadata for tracking
@@ -254,7 +250,6 @@ def run_batch_collection(level: str, dataset_type: str, target_count: int,
         with open(metadata_path, 'w', encoding='utf-8') as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
         
-        # 🔄 执行前最后检查：防止并发执行导致的重复
         print(f"🔍 执行前最后检查: {target_agent} + {fm_error_type} + {injection_strategy}")
         if check_experiment_exists(output_dir, level, dataset_type, target_agent, 
                                  fm_error_type, injection_strategy, min_tasks=batch_size):
@@ -280,7 +275,6 @@ def run_batch_collection(level: str, dataset_type: str, target_count: int,
             experiment_collected = new_count - collected
             collected = new_count
             
-            # 🔍 执行后验证：检查该配置实际产生的数据量
             actual_tasks = 0
             filename = f"level_{level}_{dataset_type}_{target_agent}_{fm_error_type}_{injection_strategy}.json"
             filepath = os.path.join(output_dir, filename)
