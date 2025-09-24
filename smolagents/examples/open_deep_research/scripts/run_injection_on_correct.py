@@ -7,9 +7,9 @@ from typing import Set, Tuple
 
 from dotenv import load_dotenv
 
-# 复用主评测模块与可视化工具
+# Reuse main evaluation module and visualization tools
 from scripts.visual_qa import visualizer
-import scripts.reformulator as _unused  # noqa: F401 触发依赖加载
+import scripts.reformulator as _unused  # noqa: F401 trigger dependency loading
 import run_gaia_full as gaia
 
 
@@ -66,7 +66,7 @@ def load_correct_questions(baseline_file: str, metric: str) -> Tuple[Set[str], S
                     except Exception:
                         pass
             else:
-                # 默认严格匹配
+                # Default strict matching
                 if normalize_answer(pred) == normalize_answer(gold):
                     correct_questions.add(q)
                     if tid:
@@ -75,8 +75,8 @@ def load_correct_questions(baseline_file: str, metric: str) -> Tuple[Set[str], S
 
 
 def main():
-    parser = argparse.ArgumentParser(description="对基线正确任务进行二次注入评测")
-    parser.add_argument("--baseline-file", type=str, required=True, help="不注入基线输出 JSONL 文件路径")
+    parser = argparse.ArgumentParser(description="Secondary injection evaluation for baseline correct tasks")
+    parser.add_argument("--baseline-file", type=str, required=True, help="Baseline output JSONL file path without injection")
     parser.add_argument("--set-to-run", type=str, default="validation")
     parser.add_argument("--concurrency", type=int, default=8)
     parser.add_argument("--run-name", type=str, required=True)
@@ -88,7 +88,7 @@ def main():
         type=str,
         choices=["union", "ids_only", "questions_only"],
         default="union",
-        help="如何从基线正确集中选择样本：仅按task_id、仅按question或两者并集",
+        help="How to select samples from baseline correct set: ids_only, questions_only, or union",
     )
     parser.add_argument("--fm-type", type=str, default="FM-1.1")
     parser.add_argument(
@@ -102,25 +102,25 @@ def main():
         type=str,
         default="manager",
         choices=["manager", "search_agent"],
-        help="选择注入目标 agent（manager 或 search_agent）",
+        help="Select injection target agent (manager or search_agent)",
     )
     parser.add_argument(
         "--disable-injection",
         action="store_true",
-        help="禁用注入，按基线方式运行并生成带 steps_full 的无注入轨迹",
+        help="Disable injection, run in baseline mode and generate trajectory without injection with steps_full",
     )
     args = parser.parse_args()
 
     load_dotenv(override=True)
 
-    # 读取基线正确题目（优先按 task_id 匹配，回退按 question 匹配）
+    # Read baseline correct tasks (prioritize task_id matching, fallback to question matching)
     correct_task_ids, correct_questions = load_correct_questions(args.baseline_file, args.metric)
     if not correct_task_ids and not correct_questions:
         print("No correct questions found from baseline. Exit.")
         return
     print(f"Found baseline-correct items -> task_ids={len(correct_task_ids)}, questions={len(correct_questions)} ({args.metric}).")
 
-    # 加载数据集并过滤（支持 ids_only / questions_only / union）
+    # Load dataset and filter (support ids_only / questions_only / union)
     eval_ds = gaia.load_gaia_dataset(False, args.set_to_run)
     ds_list = eval_ds.to_list()
     by_id = [row for row in ds_list if str(row.get("task_id", "")) in correct_task_ids]
@@ -158,11 +158,11 @@ def main():
         return
     print(f"Selected {len(examples)} examples for injection run.")
 
-    # 输出文件
+    # Output file
     answers_file = f"output/{args.set_to_run}/{args.run_name}.jsonl"
     Path(f"output/{args.set_to_run}").mkdir(parents=True, exist_ok=True)
 
-    # 并发执行注入评测
+    # Concurrent execution of injection evaluation
     with ThreadPoolExecutor(max_workers=args.concurrency) as exe:
         futures = []
         for ex in examples:

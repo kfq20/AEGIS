@@ -32,7 +32,7 @@ class Node:
                 prompt=critic_prompt,
                 system_prompt=self.system_message,
                 temperature=self.temperature,
-                node_id=self.id  # 传递节点ID
+                node_id=self.id
             )
         
         actor_prompt = ASSISTANT_PROMPT.format(
@@ -45,7 +45,7 @@ class Node:
             prompt=actor_prompt,
             system_prompt=self.system_message,
             temperature=self.temperature,
-            node_id=self.id  # 传递节点ID
+            node_id=self.id
         )
         
         return interacted_answer
@@ -62,7 +62,7 @@ class Node:
             prompt=aggregation_prompt,
             system_prompt=self.system_message,
             temperature=self.temperature,
-            node_id=self.id  # 传递节点ID
+            node_id=self.id
         )
     
     
@@ -258,7 +258,6 @@ class MacNet_Main(MAS):
                 del new_graph.nodes[cur_node.id]
 
         # 3. The graph starts executing
-        # 用于保存历史记录的列表
         self.execution_history = []
         step_count = 0
         
@@ -280,7 +279,6 @@ class MacNet_Main(MAS):
                     previous_answer=pre_answer
                 )
                 
-                # 记录节点交互历史
                 self.execution_history.append({
                     "step": step_count,
                     "node_id": cur_node.id,
@@ -304,7 +302,6 @@ class MacNet_Main(MAS):
                     aggregated = node.aggregate_answers(node.pre_answers)
                     node.generated_answer = aggregated
                     
-                    # 记录聚合历史
                     self.execution_history.append({
                         "step": step_count,
                         "node_id": node_id,

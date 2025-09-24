@@ -176,7 +176,7 @@ def visualizer(image_path: str, question: str | None = None) -> str:
         ],
         "max_tokens": 1000,
     }
-    # 支持第三方API配置
+    # Support third-party API configuration
     api_key = os.getenv('OPENAI_API_KEY') or os.getenv('API_KEY')
     api_base = os.getenv('OPENAI_API_BASE') or os.getenv('API_BASE') or "https://api.openai.com/v1"
     

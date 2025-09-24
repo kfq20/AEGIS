@@ -18,7 +18,6 @@ class DyLAN_MMLU(MAS):
         # Set default roles if not provided
         self.roles = self.method_config.get('roles', ["Assistant", "Mathematician", "Economist", "Psychologist"])
         self.num_agents = self.method_config.get('num_agents', len(self.roles))
-        # 保持向后兼容性
         self.agents_count = self.num_agents
         self.num_rounds = self.method_config.get('num_rounds', 3)
         self.activation = self.method_config.get('activation', 'listwise')

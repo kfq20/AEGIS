@@ -28,28 +28,23 @@ class LLM_Debate_Wrapper(SystemWrapper):
         malicious_agent: MaliciousAgent,
         injection_target: Dict[str, Any]
     ) -> Tuple[Any, Dict[str, Any]]:
-        # 只支持按 agent index 注入
         target_agent_index = injection_target.get('role_index', 0)
         print(f"[LLM_Debate_Wrapper] Target agent index: {target_agent_index}")
         original_call_llm = self.debate_instance.call_llm
         agents_num = getattr(self.debate_instance, 'agents_num', 3)
         rounds_num = getattr(self.debate_instance, 'rounds_num', 2)
         call_count = {'count': 0}
-        # 创建 factory 实例
         from malicious_factory import MaliciousAgentFactory
         factory = MaliciousAgentFactory(llm=self.llm)
-        # --- 定义恶意 call_llm ---
         def malicious_call_llm(*args, **kwargs):
             idx = call_count['count'] % agents_num
             call_count['count'] += 1
             if idx == target_agent_index:
                 print(f"*** Malicious Agent Activated on index {idx} [Method {malicious_agent.method}] ***")
                 
-                # 从 messages 中提取 task_input
                 messages = kwargs.get('messages', [])
                 task_input = ""
                 if messages:
-                    # 获取最后一条 user 消息作为当前任务
                     for msg in reversed(messages):
                         if msg.get('role') == 'user':
                             task_input = msg.get('content', '')
@@ -70,7 +65,6 @@ class LLM_Debate_Wrapper(SystemWrapper):
         self.debate_instance.call_llm = original_call_llm
         print("[LLM_Debate_Wrapper] Original call_llm restored.")
 
-        # 记录完整对话历史
         full_history = []
         agent_contexts = getattr(self.debate_instance, 'agent_contexts', None)
         if agent_contexts is not None:
@@ -81,7 +75,6 @@ class LLM_Debate_Wrapper(SystemWrapper):
                         "role_index": agent_index,
                         "content": message["content"],
                         "msg_index": msg_index,
-                        # 可选: 你可以根据 msg_index 或轮次推断 round
                     })
 
         log = {

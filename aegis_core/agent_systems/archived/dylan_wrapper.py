@@ -21,9 +21,8 @@ class DyLANWrapper(SystemWrapper):
             raise ValueError("No LLM configuration found for the specified model name.")
 
         self.llm = create_llm_instance(llm_config)
-        # 动态选择 DyLAN 变体
         method_name = exp_config['system_under_test']['name']  # "dylan"
-        dataset_name = exp_config.get('benchmark_name', None)  # 如 "GSM8K", "MATH", "MMLU", "HumanEval"
+        dataset_name = exp_config.get('benchmark_name', None)
         MAS_CLASS = get_method_class(method_name, dataset_name)
         self.dylan_instance = MAS_CLASS(general_config, method_config_name=None)
 
@@ -44,7 +43,6 @@ class DyLANWrapper(SystemWrapper):
         
         current_node_id = None
 
-        # 创建 factory 实例用于注入逻辑
         from malicious_factory import MaliciousAgentFactory
         factory = MaliciousAgentFactory(llm=self.llm)
 
@@ -62,17 +60,14 @@ class DyLANWrapper(SystemWrapper):
                         current_node_id = i
                         break
             
-            # 获取当前节点的角色和编号
             current_role = None
             current_role_index = None
             if hasattr(self.dylan_instance, 'nodes') and current_node_id is not None:
                 current_role = self.dylan_instance.nodes[current_node_id].get('role', None)
-                # 计算编号：在每轮的智能体编号为 node_id % num_agents
                 current_role_index = current_node_id % self.dylan_instance.num_agents
             
             print(f"[DyLAN Runner Intercept] Node {current_node_id}: role='{current_role}', index={current_role_index}")
 
-            # 2. 判断是否注入恶意内容
             is_malicious_call = (current_role == target_role and current_role_index == target_role_index)
 
             if not is_malicious_call:
@@ -80,7 +75,6 @@ class DyLANWrapper(SystemWrapper):
 
             print(f"*** Malicious Agent Activated on '{current_role}' (index {current_role_index}, node {current_node_id}) ***")
             
-            # 使用 factory 的统一注入逻辑
             task_input = messages[-1]['content'] if messages else ""
             response = factory.inject_malicious_behavior(
                 lambda: original_llm_call(*args, **kwargs),

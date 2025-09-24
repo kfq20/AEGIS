@@ -8,7 +8,6 @@ import asyncio
 # pip install openai google-generativeai anthropic
 import openai
 
-# 可选导入，如果包不存在则设为 None
 try:
     import google.generativeai as genai
 except ImportError:
@@ -83,7 +82,6 @@ class AzureOpenAIClient(BaseLLM):
         if not all([api_key, azure_endpoint]):
             raise ValueError("AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT must be configured.")
             
-        # 使用同步客户端而不是异步客户端
         self.client = openai.AzureOpenAI(
             api_key=api_key,
             azure_endpoint=azure_endpoint,
@@ -101,7 +99,6 @@ class AzureOpenAIClient(BaseLLM):
         return response.choices[0].message.content
 
     async def acall(self, prompt: str, **kwargs) -> Dict[str, Any]:
-        # 为了兼容性保留异步方法
         response = await self.client.chat.completions.create(
             model=self.deployment_name,
             messages=[{"role": "user", "content": prompt}],
@@ -122,7 +119,6 @@ class GeminiClient(BaseLLM):
         self.model = genai.GenerativeModel(self.model_name)
 
     def call(self, prompt: str, **kwargs) -> str:
-        # 同步调用
         response = self.model.generate_content(prompt, **kwargs)
         return response.text
 
@@ -143,7 +139,6 @@ class ClaudeClient(BaseLLM):
         self.client = AsyncAnthropic(api_key=api_key)
 
     def call(self, prompt: str, **kwargs) -> str:
-        # 同步调用
         response = self.client.messages.create(
             model=self.model_name,
             max_tokens=2048, # Anthropic requires max_tokens

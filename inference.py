@@ -19,7 +19,6 @@ def load_existing_results(results_file_path):
                 try:
                     if line.strip():
                         data = json.loads(line.strip())
-                        # 使用 query 作为唯一标识符
                         if 'query' in data:
                             processed_samples[data['query']] = data
                 except json.JSONDecodeError as e:
@@ -62,7 +61,6 @@ def collect_conversation_history(mas_instance, framework_name: str) -> dict:
     
     try:
         if framework_name == "llm_debate":
-            # LLM Debate 在 agent_contexts 中保存完整对话
             agent_contexts = getattr(mas_instance, 'agent_contexts', None)
             if agent_contexts:
                 history_data["agent_contexts"] = agent_contexts
@@ -77,7 +75,6 @@ def collect_conversation_history(mas_instance, framework_name: str) -> dict:
                         })
         
         elif framework_name in ["dylan", "dylan_math", "dylan_humaneval", "dylan_mmlu"]:
-            # DyLAN 在 nodes 中保存网络状态
             if hasattr(mas_instance, 'nodes'):
                 for i, node in enumerate(mas_instance.nodes):
                     if node and node.get('reply'):
@@ -95,7 +92,6 @@ def collect_conversation_history(mas_instance, framework_name: str) -> dict:
                         })
 
             elif hasattr(mas_instance, 'agent_contexts') and mas_instance.agent_contexts:
-                # 新增：支持DyLAN_MATH的agent_contexts
                 for agent_idx, context in enumerate(mas_instance.agent_contexts):
                     for msg_idx, msg in enumerate(context):
                         # if msg['role'] == 'assistant':
@@ -108,7 +104,6 @@ def collect_conversation_history(mas_instance, framework_name: str) -> dict:
                             })
 
         elif framework_name in ["agentverse", "agentverse_humaneval", "agentverse_mgsm"]:
-            # AgentVerse 有 history 属性
             if hasattr(mas_instance, 'history'):
                 history_data["conversation_history"] = mas_instance.history
                 for i, entry in enumerate(mas_instance.history):
@@ -121,11 +116,9 @@ def collect_conversation_history(mas_instance, framework_name: str) -> dict:
                         })
         
         elif framework_name in ["macnet", "macnet_srdd"]:
-            # MacNet 有执行历史记录
             if hasattr(mas_instance, 'execution_history'):
                 history_data["full_history"] = mas_instance.execution_history
             elif hasattr(mas_instance, 'nodes'):
-                # 备用方案：从节点中提取历史
                 for node_id, node in mas_instance.nodes.items():
                     if hasattr(node, 'generated_answer') and node.generated_answer:
                         history_data["full_history"].append({
@@ -138,7 +131,6 @@ def collect_conversation_history(mas_instance, framework_name: str) -> dict:
                         })
         
         else:
-            # 通用框架：尝试获取常见属性
             for attr_name in ['history', 'conversation_history', 'messages', 'agent_contexts']:
                 if hasattr(mas_instance, attr_name):
                     attr_value = getattr(mas_instance, attr_name)
@@ -159,14 +151,12 @@ def process_sample(args, general_config, sample, output_path, lock):
     try:
         mas_output = mas.inference(sample)
         
-        # 处理不同的输出格式 - 统一为string格式以匹配injection数据
         response_content = ""
         if isinstance(mas_output, dict):
             if "response" in mas_output:
                 response_content = mas_output["response"]
                 save_data.update(mas_output)
             else:
-                # 字典格式但没有response键，尝试找到包含答案的字段
                 for key, value in mas_output.items():
                     if isinstance(value, str) and value.strip():
                         response_content = value
@@ -175,31 +165,24 @@ def process_sample(args, general_config, sample, output_path, lock):
                     response_content = str(mas_output)
                 save_data.update(mas_output)
         else:
-            # 直接返回字符串、None或其他类型的情况
             if mas_output is None:
                 response_content = ""
             else:
                 response_content = str(mas_output)
         
-        # 统一response格式为string（匹配injection数据格式）
         save_data["response"] = response_content
         
-        # 收集对话历史（增强版）
         history_data = collect_conversation_history(mas, args.method_name)
         
-        # 调整injection_log格式以匹配注入数据
         history_data["final_output"] = response_content
         save_data["injection_log"] = history_data
         
-        # 向后兼容：仍然尝试保存 history 属性
         if hasattr(mas, 'history'):
             save_data["history"] = mas.history
         
-        # 添加注入相关字段（正常数据的默认值）
-        save_data["fm_error_type"] = ""  # 正常数据没有错误类型
-        save_data["injection_strategy"] = ""  # 正常数据没有注入策略
+        save_data["fm_error_type"] = ""
+        save_data["injection_strategy"] = ""
         
-        # 添加状态信息
         save_data["status"] = "success"
         
     except Exception as e:
@@ -237,7 +220,6 @@ if __name__ == "__main__":
                             "If not specified, will auto-detect from method_name. "
                             "Available files: {DATASET}+{FRAMEWORK}.json")
     
-    # 断点重续相关参数
     parser.add_argument("--resume_from", type=str, default=None, help="从指定的结果文件继续处理")
     parser.add_argument("--resume", action="store_true", help="自动检测并继续处理最新的结果文件")
     
@@ -268,11 +250,9 @@ if __name__ == "__main__":
 
         # load dataset
         if args.use_subset:
-            # 确定subset framework名称
             if args.subset_framework:
                 subset_framework = args.subset_framework
             else:
-                # 尝试从method_name推断framework名称
                 framework_mapping = {
                     "dylan": "dylan",
                     "dylan_math": "dylan", 
@@ -287,7 +267,6 @@ if __name__ == "__main__":
                 }
                 subset_framework = framework_mapping.get(args.method_name, args.method_name)
             
-            # 构建subset文件路径
             dataset_name_upper = args.test_dataset_name.upper()
             subset_file = f"./datasets/data/subset/{dataset_name_upper}+{subset_framework}.json"
             
@@ -301,7 +280,6 @@ if __name__ == "__main__":
                 with open(f"./datasets/data/{args.test_dataset_name}.json", "r") as f:
                     test_dataset = json.load(f)
         else:
-            # 使用原始数据集
             with open(f"./datasets/data/{args.test_dataset_name}.json", "r") as f:
                 test_dataset = json.load(f)
         
@@ -312,40 +290,32 @@ if __name__ == "__main__":
             with open(val_dataset_path, "r") as f:
                 val_dataset = json.load(f)
         
-        # 确定输出文件路径
         import time
         if args.output_path is not None:
             output_path = args.output_path
         elif args.resume_from is not None:
-            # 使用指定的结果文件路径
             output_path = args.resume_from
         elif args.resume:
-            # 自动查找最新的结果文件
             results_dir = f"./results_right/{args.test_dataset_name}/{args.model_name}"
             if os.path.exists(results_dir):
                 result_files = [f for f in os.listdir(results_dir) if f.startswith(f"{args.method_name}_infer_") and f.endswith('.jsonl')]
                 if result_files:
-                    # 按文件名排序，取最新的
                     result_files.sort(reverse=True)
                     output_path = os.path.join(results_dir, result_files[0])
                     print(f"🔄 自动检测到最新结果文件: {output_path}")
                 else:
-                    # 没有找到结果文件，创建新的
                     output_path = f"./results_right/{args.test_dataset_name}/{args.model_name}/{args.method_name}_infer_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"
             else:
                 output_path = f"./results_right/{args.test_dataset_name}/{args.model_name}/{args.method_name}_infer_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"
         else:
-            # 创建新的结果文件
             output_path = f"./results_right/{args.test_dataset_name}/{args.model_name}/{args.method_name}_infer_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"
         
         output_dir = os.path.dirname(output_path)
-        if output_dir:  # 只有当目录路径不为空时才创建
+        if output_dir:
             os.makedirs(output_dir, exist_ok=True)
         
-        # 加载已有结果（如果存在）
         processed_samples = load_existing_results(output_path)
         
-        # 过滤掉已处理的样本
         test_dataset = filter_processed_samples(test_dataset, processed_samples)
         
         if len(test_dataset) == 0:

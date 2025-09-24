@@ -215,7 +215,6 @@ class FM_Debate_Wrapper(SystemWrapper):
                         if msg.get('role') == 'user':
                             task_input = msg.get('content', '')
                             break
-                # 构造 agent_context
                 class MockAgent:
                     def __init__(self, idx):
                         self.role_name = f"Assistant {idx+1}"
@@ -258,7 +257,6 @@ class FM_Debate_Wrapper(SystemWrapper):
         self.debate_instance.call_llm = original_call_llm
         print("[FM_Debate_Wrapper] Original call_llm restored.")
 
-        # 记录完整对话历史
         full_history = []
         agent_contexts = getattr(self.debate_instance, 'agent_contexts', None)
         if agent_contexts is not None:

@@ -21,7 +21,6 @@ from peft import PeftModel
 import torch
 from tqdm import tqdm
 
-# 设置日志
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -47,17 +46,14 @@ class QwenAnomalyDetector:
             enable_thinking: 是否启用思考模式（用于 Qwen3 特殊处理）
         """
         self.model_name = model_name
-        self.enable_thinking = enable_thinking  # 使用参数传入的值
-        self.max_new_tokens = max_new_tokens  # 添加 max_new_tokens 属性
+        self.enable_thinking = enable_thinking
+        self.max_new_tokens = max_new_tokens
         logger.info(f"正在加载模型: {model_name}")
         logger.info(f"\n========== model_name: {self.model_name}==========\n")
         
-        # 检查是否为LoRA checkpoint路径
         model_path = Path(model_name)
         if model_path.exists() and (model_path / "lora_adapter").exists():
-            # 这是一个包含LoRA的checkpoint路径
             lora_adapter_path = str(model_path / "lora_adapter")
-            # 从adapter_config.json中读取base model
             try:
                 import json
                 with open(model_path / "lora_adapter" / "adapter_config.json", 'r') as f:
@@ -71,7 +67,6 @@ class QwenAnomalyDetector:
         else:
             base_model_name = model_name
         
-        # 加载base model
         self.model = AutoModelForCausalLM.from_pretrained(
             base_model_name,
             torch_dtype=torch.bfloat16,
@@ -79,13 +74,11 @@ class QwenAnomalyDetector:
         )
         self.tokenizer = AutoTokenizer.from_pretrained(base_model_name)
         
-        # 如果有LoRA adapter，则加载它
         if lora_adapter_path:
             logger.info(f"正在加载LoRA adapter: {lora_adapter_path}")
             self.model = PeftModel.from_pretrained(self.model, lora_adapter_path)
             logger.info("LoRA adapter加载完成")
         
-        # 清理不必要的GPU内存
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         
@@ -121,7 +114,6 @@ class QwenAnomalyDetector:
         query = input_data.get('query', '')
         conversation_history = input_data.get('conversation_history', [])
         
-        # 开始构建对话文本
         conversation_text = f"QUERY:\n{query}\n\n"
         conversation_text += "CONVERSATION HISTORY:\n"
         
@@ -150,7 +142,6 @@ class QwenAnomalyDetector:
         if not conversation_texts:
             return [], [], {"total": 0, "filtered": 0, "kept": 0}
             
-        # 不再进行任何过滤，直接返回所有样本
         kept_indices = list(range(len(conversation_texts)))
         stats = {"total": len(conversation_texts), "filtered": 0, "kept": len(conversation_texts)}
         
@@ -173,12 +164,10 @@ class QwenAnomalyDetector:
             
         prompt_template = self.load_prompt_template('/home/fanqi/verl/AMEeval/prompt.txt')
         
-        # 为每个对话构建prompt
         prompts = [prompt_template.format(conversation_text=text) for text in conversation_texts]
         
         for attempt in range(max_retries):
             try:
-                # 构建批量消息格式
                 batch_messages = []
                 for prompt in prompts:
                     messages = [
@@ -187,7 +176,6 @@ class QwenAnomalyDetector:
                     ]
                     batch_messages.append(messages)
                 
-                # 批量应用聊天模板并直接tokenize，避免截断问题 (添加 qwen3 特殊处理)
                 batch_texts = []
                 for messages in batch_messages:
                     if "qwen3" in self.model_name.lower():
@@ -205,16 +193,14 @@ class QwenAnomalyDetector:
                         )
                     batch_texts.append(text)
                 
-                # 批量编码输入
                 model_inputs = self.tokenizer(
                     batch_texts, 
                     return_tensors="pt", 
                     padding=True, 
-                    truncation=False  # 不再截断输入
+                    truncation=False
                 ).to(self.model.device)
                 
                 
-                # 批量生成回复
                 with torch.no_grad():
                     generated_ids = self.model.generate(
                         **model_inputs,
@@ -240,7 +226,6 @@ class QwenAnomalyDetector:
                         logger.warning(f"解析批量结果失败: {e}")
                         batch_results.append({"faulty_agents": []})
                 
-                # 清理GPU内存
                 del model_inputs, generated_ids
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
@@ -265,32 +250,25 @@ class QwenAnomalyDetector:
         Returns:
             解析后的结果字典
         """
-        # 清理响应文本，移除可能的 markdown 格式
         clean_response = response_text.strip()
         
-        # 如果响应包含 markdown 代码块，移除它们
         if '```json' in clean_response:
             import re
             json_match = re.search(r'```json\s*({.*?})\s*```', clean_response, re.DOTALL)
             if json_match:
                 clean_response = json_match.group(1)
         elif '```' in clean_response:
-            # 移除普通代码块
             clean_response = clean_response.replace('```json', '').replace('```', '').strip()
         
-        # 尝试从响应中提取JSON对象
-        # 查找最后一个完整的JSON对象
         import re
         json_pattern = r'{\s*"faulty_agents"\s*:\s*\[.*?\]\s*}'
         json_matches = re.findall(json_pattern, clean_response, re.DOTALL)
         
         if json_matches:
-            # 使用最后一个匹配的JSON对象（通常是最终答案）
             json_str = json_matches[-1]
             result = json.loads(json_str)
             return result
         else:
-            # 如果没有找到标准格式，尝试解析整个响应作为JSON
             result = json.loads(clean_response)
             return result
     
@@ -308,20 +286,16 @@ class QwenAnomalyDetector:
             return []
             
         try:
-            # 批量提取对话文本
             conversation_texts = []
             for sample in samples:
                 input_data = sample.get('input', {})
                 conversation_text = self.extract_conversation_text(input_data)
                 conversation_texts.append(conversation_text)
             
-            # 不再过滤样本，直接处理所有样本
             filtered_texts, kept_indices, filter_stats = self.filter_long_samples(conversation_texts, max_length=8192)
             
-            # 批量检测异常（处理所有样本）
             detection_results, batch_raw_response = self.detect_anomalies_batch(filtered_texts)
             
-            # 为所有样本构建结果
             results = []
             for i, (detection_result, raw_response) in enumerate(zip(detection_results, batch_raw_response)):
                 sample = samples[i]
@@ -342,7 +316,6 @@ class QwenAnomalyDetector:
             
         except Exception as e:
             logger.error(f"批量评估失败: {e}")
-            # 如果批量处理失败，返回错误结果
             error_results = []
             for sample in samples:
                 error_result = {
@@ -365,8 +338,6 @@ def create_sample_hash(sample: Dict) -> str:
     Returns:
         样本的哈希值
     """
-    # 创建一个包含关键字段的字符串来生成哈希
-    # 使用id、query、conversation_history来确保唯一性
     input_data = sample.get('input', {})
     hash_data = {
         'id': sample.get('id', ''),
@@ -374,7 +345,6 @@ def create_sample_hash(sample: Dict) -> str:
         'conversation_history': input_data.get('conversation_history', [])
     }
     
-    # 将数据转换为JSON字符串并生成MD5哈希
     hash_string = json.dumps(hash_data, sort_keys=True, ensure_ascii=False)
     return hashlib.md5(hash_string.encode('utf-8')).hexdigest()
 
@@ -399,13 +369,10 @@ def load_existing_results(output_file: str) -> tuple[List[Dict], set]:
                 try:
                     result = json.loads(line.strip())
                     existing_results.append(result)
-                    # 为已处理的样本创建哈希并添加到集合中
                     if 'original_sample' in result:
                         sample_hash = create_sample_hash(result['original_sample'])
                         processed_hashes.add(sample_hash)
-                    # 为了兼容旧格式，如果没有original_sample但有其他字段，也尝试创建哈希
                     elif 'id' in result:
-                        # 从结果中重构样本数据来计算哈希，保持与真实样本相同的结构
                         input_data = result.get('input', {})
                         reconstructed_sample = {
                             'id': result.get('id', ''),
@@ -561,85 +528,69 @@ def main():
     
     args = parser.parse_args()
     
-    # 检查输入文件
     if not Path(args.input).exists():
         logger.error(f"输入文件不存在: {args.input}")
         return
     
-    # 检查输出目录
     output_dir = Path(args.output).parent
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # 如果启用resume模式，先加载现有结果
     existing_results = []
     processed_hashes = set()
     if args.resume:
         existing_results, processed_hashes = load_existing_results(args.output)
     
-    # 初始化检测器
     detector = QwenAnomalyDetector(
         args.model_name, 
         max_new_tokens=args.max_new_tokens,
         enable_thinking=args.enable_thinking
     )
     
-    # 加载数据集
     logger.info(f"加载数据集: {args.input}")
     samples = load_dataset(args.input, args.limit)
     logger.info(f"加载了 {len(samples)} 个样本")
     
-    # 如果启用resume模式，过滤已处理的样本
     if args.resume:
         samples = filter_unprocessed_samples(samples, processed_hashes)
         if not samples:
             logger.info("所有样本都已处理完成！")
             return
     
-    # 评估样本 - 使用批量处理提升速度
     logger.info("开始异常检测...")
     
-    # 设置批量处理的batch_size
-    inference_batch_size = args.batch_size  # 从命令行参数获取
-    save_batch_size = 20     # 保存批量大小，每处理多少个样本保存一次
+    inference_batch_size = args.batch_size
+    save_batch_size = 20
     
     all_results = []
     
-    # 计算总批次数
     total_batches = (len(samples) - 1) // inference_batch_size + 1
     logger.info(f"总共将处理 {len(samples)} 个样本，分 {total_batches} 个批次，每批次 {inference_batch_size} 个样本")
     
-    # 按批量处理样本
     for batch_start in tqdm(range(0, len(samples), inference_batch_size), desc="批量处理", total=total_batches):
         batch_end = min(batch_start + inference_batch_size, len(samples))
         batch_samples = samples[batch_start:batch_end]
         
         logger.info(f"处理批次 {batch_start//inference_batch_size + 1}/{(len(samples)-1)//inference_batch_size + 1}: 样本 {batch_start+1}-{batch_end}")
         
-        # 批量推理
         batch_results = detector.evaluate_samples_batch(batch_samples)
         all_results.extend(batch_results)
         
-        # 定期保存结果，避免内存积累和数据丢失
         if len(all_results) >= save_batch_size or batch_end == len(samples):
             if args.resume:
                 append_results(all_results, args.output)
             else:
-                # 非resume模式，第一次覆盖文件，之后追加
                 if batch_start == 0:
                     save_results(all_results, args.output)
                 else:
                     append_results(all_results, args.output)
             
             logger.info(f"已保存 {len(all_results)} 个结果")
-            all_results = []  # 清空结果列表
+            all_results = []
         
-        # 添加小延迟避免过度占用资源
         time.sleep(0.5)
     
-    # 计算指标和打印统计
     logger.info("处理完成！")
     
-    # 加载所有结果并计算最终统计
     if Path(args.output).exists():
         logger.info("正在计算最终统计信息...")
         all_final_results = []

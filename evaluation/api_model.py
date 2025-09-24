@@ -23,7 +23,6 @@ import sys
 from openai import OpenAI
 from tqdm import tqdm
 from multiprocessing import Process, Queue, Manager
-# 设置日志
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -80,7 +79,6 @@ class GeminiAnomalyDetector:
         query = input_data.get('query', '')
         conversation_history = input_data.get('conversation_history', [])
         
-        # 开始构建对话文本
         conversation_text = f"QUERY:\n{query}\n\n"
         conversation_text += "CONVERSATION HISTORY:\n"
         
@@ -109,7 +107,6 @@ class GeminiAnomalyDetector:
         prompt_template = self.load_prompt_template("baseline/prompt_cot.txt")
         prompt = prompt_template.format(conversation_text=conversation_text)
         
-        # 为每个进程创建独立的客户端
         client = OpenAI(
             api_key=self.api_key,
             base_url=self.base_url
@@ -126,7 +123,6 @@ class GeminiAnomalyDetector:
                     # temperature=0
                 )
                 
-                # 检查响应结构是否完整
                 if not response.choices or len(response.choices) == 0:
                     logger.warning(f"API 返回空的 choices (尝试 {attempt + 1}/{max_retries})")
                     logger.debug(f"完整响应: {response}")
@@ -145,9 +141,7 @@ class GeminiAnomalyDetector:
                 
                 response_text = response.choices[0].message.content.strip()
                 
-                # 尝试解析 JSON
                 try:
-                    # 移除可能的 markdown 格式
                     if response_text.startswith('```json'):
                         response_text = response_text[7:]
                     if response_text.endswith('```'):
@@ -160,16 +154,15 @@ class GeminiAnomalyDetector:
                     logger.warning(f"JSON 解析失败 (尝试 {attempt + 1}/{max_retries}): {e}")
                     
                     if attempt == max_retries - 1:
-                        # 最后一次尝试，返回默认结果
                         return {"faulty_agents": []}, ""
                     
-                    time.sleep(1)  # 等待一秒后重试
+                    time.sleep(1)
                     
             except Exception as e:
                 logger.error(f"API 调用失败 (尝试 {attempt + 1}/{max_retries}): {e}")
                 if attempt == max_retries - 1:
                     return {"faulty_agents": []}, ""
-                time.sleep(2)  # 等待两秒后重试
+                time.sleep(2)
         
         return {"faulty_agents": []}, ""
     
@@ -184,14 +177,11 @@ class GeminiAnomalyDetector:
             评估结果
         """
         try:
-            # 提取完整的对话文本（包括 query 和 conversation_history）
             input_data = sample.get('input', {})
             conversation_text = self.extract_conversation_text(input_data)
             
-            # 使用 Gemini 检测异常
             detection_result, response_text = self.detect_anomalies_sync(conversation_text)
             
-            # 构建结果
             result = {
                 "id": sample.get("id"),
                 "metadata": sample.get("metadata"),
@@ -282,7 +272,6 @@ def save_results(results: List[Dict], output_file: str, append: bool = False):
         output_file: 输出文件路径
         append: 是否追加模式（True为追加，False为覆盖）
     """
-    # 确保输出目录存在
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
@@ -357,20 +346,17 @@ def process_sample_worker(sample_queue: Queue, model: str, api_key: str, base_ur
         worker_id: 工作进程 ID
     """
     try:
-        # 为每个进程创建独立的检测器
         detector = GeminiAnomalyDetector(model, api_key, base_url)
         
         while True:
             try:
-                # 从队列中获取样本，设置超时避免无限等待
                 sample = sample_queue.get(timeout=1)
-                if sample is None:  # 结束信号
+                if sample is None:
                     break
                     
                 result = detector.evaluate_sample(sample)
                 result_queue.put(result)
                 
-                # 发送进度更新
                 progress_queue.put({
                     'worker_id': worker_id,
                     'sample_id': sample.get('id', 'unknown'),
@@ -386,7 +372,6 @@ def process_sample_worker(sample_queue: Queue, model: str, api_key: str, base_ur
                     }
                     result_queue.put(error_result)
                     
-                    # 发送错误进度更新
                     progress_queue.put({
                         'worker_id': worker_id,
                         'sample_id': sample.get('id', 'unknown'),
@@ -394,7 +379,7 @@ def process_sample_worker(sample_queue: Queue, model: str, api_key: str, base_ur
                         'error': str(e)
                     })
                 else:
-                    break  # 队列超时，退出循环
+                    break
             
     except Exception as e:
         logger.error(f"工作进程 {worker_id} 发生错误: {e}")
@@ -417,21 +402,17 @@ def process_multiprocessing(samples: List[Dict], model: str, api_key: str, base_
     """
     logger.info(f"使用 {batch_size} 个并行进程处理 {len(samples)} 个样本")
     
-    # 创建队列
     manager = Manager()
     sample_queue = manager.Queue()
     result_queue = manager.Queue()
     progress_queue = manager.Queue()
     
-    # 将所有样本放入队列
     for sample in samples:
         sample_queue.put(sample)
     
-    # 添加结束信号
     for _ in range(batch_size):
         sample_queue.put(None)
     
-    # 创建进程
     processes = []
     for i in range(batch_size):
         p = Process(
@@ -441,14 +422,12 @@ def process_multiprocessing(samples: List[Dict], model: str, api_key: str, base_
         processes.append(p)
         p.start()
     
-    # 收集结果
     all_results = []
     completed_samples = 0
     
     with tqdm(total=len(samples), desc="处理样本") as pbar:
         while completed_samples < len(samples):
             try:
-                # 检查是否有新的进度更新
                 try:
                     progress_update = progress_queue.get_nowait()
                     if progress_update.get('status') == 'error':
@@ -458,19 +437,17 @@ def process_multiprocessing(samples: List[Dict], model: str, api_key: str, base_
                 except:
                     pass
                 
-                # 检查是否有完成的结果
                 try:
                     result = result_queue.get_nowait()
                     all_results.append(result)
                 except:
                     pass
                 
-                # 检查进程状态
                 for p in processes:
                     if not p.is_alive() and p.exitcode != 0:
                         logger.error(f"进程异常退出，退出码: {p.exitcode}")
                 
-                time.sleep(0.1)  # 短暂休眠避免过度占用 CPU
+                time.sleep(0.1)
                 
             except KeyboardInterrupt:
                 logger.info("收到中断信号，正在停止所有进程...")
@@ -480,7 +457,6 @@ def process_multiprocessing(samples: List[Dict], model: str, api_key: str, base_
                         p.join()
                 break
     
-    # 等待所有进程完成
     for p in processes:
         p.join()
     
@@ -509,50 +485,39 @@ def main():
     
     args = parser.parse_args()
     
-    # 检查输入文件
     if not Path(args.input).exists():
         logger.error(f"输入文件不存在: {args.input}")
         return
     
-    # 获取 API 密钥
     api_key = args.api_key or os.getenv("GOOGLE_API_KEY", "YOUR_GOOGLE_API_KEY_HERE")
     
-    # 加载已处理的样本ID
     if args.resume:
         processed_ids = load_processed_samples_from_output(args.output)
     else:
         processed_ids = set()
     
-    # 加载数据集，跳过已处理的样本
     logger.info(f"加载数据集: {args.input}")
     samples = load_dataset(args.input, args.limit)
     logger.info(f"加载了 {len(samples)} 个样本")
     
-    # 过滤掉已处理的样本
     samples = [s for s in samples if s.get('id') not in processed_ids]
     logger.info(f"过滤掉 {len(processed_ids)} 个已处理的样本，剩余 {len(samples)} 个样本")
     
-    # 记录开始时间
     start_time = time.time()
     
-    # 使用多进程处理样本
     logger.info(f"使用多进程模式处理，并行进程数: {args.batch_size}")
     results = process_multiprocessing(samples, args.model, api_key, args.base_url, args.batch_size)
     
-    # 记录结束时间
     end_time = time.time()
     processing_time = end_time - start_time
     
-    # 计算指标
     metrics = calculate_metrics(results)
     logger.info(f"评估完成: {metrics}")
     logger.info(f"总处理时间: {processing_time:.2f} 秒")
     logger.info(f"平均每个样本处理时间: {processing_time/len(samples):.2f} 秒")
     
-    # 保存结果
     save_results(results, args.output, append=args.resume)
     
-    # 打印详细统计
     print("\n" + "="*60)
     print("评估结果统计")
     print("="*60)
@@ -568,7 +533,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # 设置多进程启动方法
     import multiprocessing as mp
     mp.set_start_method('spawn', force=True)
     

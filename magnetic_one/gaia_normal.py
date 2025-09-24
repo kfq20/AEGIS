@@ -65,7 +65,6 @@ def load_tasks(
         
         datas = [data for data in gaia_data[on] if data["Level"] in levels]
         
-        # 如果使用子集，过滤任务
         if use_subset and subset_file:
             if os.path.exists(subset_file):
                 with open(subset_file, 'r', encoding='utf-8') as f:
@@ -74,7 +73,6 @@ def load_tasks(
                     print(f"📋 使用子集数据集: {subset_file}")
                     print(f"📊 子集包含 {len(subset_task_ids)} 个任务")
                     
-                    # 过滤数据
                     original_count = len(datas)
                     datas = [data for data in datas if data["task_id"] in subset_task_ids]
                     print(f"🔍 过滤后剩余 {len(datas)} 个任务 (从 {original_count} 个)")
@@ -94,7 +92,6 @@ def load_tasks(
         return datas
 
 async def run_task_and_capture_log(team, task_prompt):
-    # 捕获 Console 的输出
     from io import StringIO
     import sys
 
@@ -108,7 +105,6 @@ async def run_task_and_capture_log(team, task_prompt):
     return mystdout.getvalue()
 
 async def main() -> None:
-    # 解析命令行参数
     parser = argparse.ArgumentParser(description="GAIA 测试脚本")
     parser.add_argument("--level", type=int, default=2, help="GAIA level (1, 2, 3)")
     parser.add_argument("--on", type=str, default="valid", choices=["valid", "test"], help="数据集类型")
@@ -119,7 +115,6 @@ async def main() -> None:
     
     args = parser.parse_args()
 
-    # 创建独立的 model clients 避免共享
     def create_model_client():
         return OpenAIChatCompletionClient(
             model="gpt-4o-mini-2024-07-18",
@@ -134,7 +129,6 @@ async def main() -> None:
     else:
         OUTPUT_PATH = f"magentic_one/logs/level_{LEVEL}_{on}.json"
     
-    # 加载任务
     tasks = load_tasks(
         on=on, 
         level=LEVEL,
@@ -148,7 +142,6 @@ async def main() -> None:
     if len(tasks) > 0:
         print(f"🔍 第一个任务ID: {tasks[0]['task_id']}")
 
-    # === 断点重续逻辑保持不变 ===
     import os
     if os.path.exists(OUTPUT_PATH):
         with open(OUTPUT_PATH, "r", encoding="utf-8") as f:
@@ -156,20 +149,17 @@ async def main() -> None:
     else:
         all_logs = {}
 
-    # === 修改：每个任务创建新的团队，每个 agent 使用独立的 model client ===
     for task in tasks:
         task_id = task["task_id"]
         if task_id in all_logs:
             print(f"Task {task_id} 已完成，跳过。")
             continue
             
-        # 为每个 agent 创建独立的 model client
         surfer_client = create_model_client()
         file_surfer_client = create_model_client()
         coder_client = create_model_client()
         team_client = create_model_client()
         
-        # 为每个任务创建新的团队实例，使用独立的 clients
         surfer = MultimodalWebSurfer("WebSurfer", model_client=surfer_client)
         file_surfer = FileSurfer("FileSurfer", model_client=file_surfer_client)
         coder = MagenticOneCoderAgent("Coder", model_client=coder_client)
@@ -183,7 +173,6 @@ async def main() -> None:
         all_logs[task_id]["correct_answer"] = answer
         all_logs[task_id]["logs"] = await run_task_and_capture_log(team, question)
 
-        # 每做完一个就保存一次
         os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
         with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
             json.dump(all_logs, f, ensure_ascii=False, indent=2)

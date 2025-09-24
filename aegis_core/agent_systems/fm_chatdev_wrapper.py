@@ -22,13 +22,11 @@ class FMChatDevWrapper(SystemWrapper):
 
         self.llm = create_llm_instance(llm_config)
         
-        # 获取 ChatDev 类
         method_name = exp_config['system_under_test']['name']  # "chatdev"
-        dataset_name = exp_config.get('benchmark_name', None)  # 通常是 "SRDD"
+        dataset_name = exp_config.get('benchmark_name', None)
         MAS_CLASS = get_method_class(method_name, dataset_name)
         self.chatdev_instance = MAS_CLASS(general_config, method_config_name=None)
 
-        # 创建FM恶意注入工厂
         self.fm_factory = FMMaliciousFactory(llm=self.llm)
 
         print(f"FMChatDevWrapper initialized with {MAS_CLASS.__name__}.")

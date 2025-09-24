@@ -46,12 +46,10 @@ async def process_sample(args, sample: dict, lock: threading.Lock, output_path: 
         # 1. Load method-specific config
         method_config_path = exp_config['system_under_test']['method_config_path']
         
-        # 🎯 为 MacNet 使用自动生成的配置
         if exp_config.get('macnet_config'):
             print(f"🤖 [MacNet] 使用自动生成的配置，type: {exp_config['macnet_config']['type']}")
             method_config = exp_config['macnet_config']
         else:
-            # 其他框架使用原始配置文件
             with open(method_config_path, 'r') as f:
                 method_config = yaml.safe_load(f)
 
@@ -65,7 +63,6 @@ async def process_sample(args, sample: dict, lock: threading.Lock, output_path: 
             metadata={'dataset': exp_config.get('benchmark_name'), 'id': sample.get('id')}
         )
 
-        # 3. Instantiate the correct System Wrapper (每个线程独立创建)
         WrapperClass = import_class(exp_config['system_under_test']['wrapper_class_path'])
         system_wrapper = WrapperClass(
             general_config=general_config,
@@ -118,16 +115,12 @@ async def process_sample(args, sample: dict, lock: threading.Lock, output_path: 
         )
         
         # 6. Collate results
-        # 处理 final_output 的格式，避免嵌套的 response 字段
         if isinstance(final_output, dict) and 'response' in final_output:
-            # 如果 final_output 是 {"response": "answer"} 格式，直接提取 answer
             save_data['response'] = final_output['response']
-            # 将其他字段也保存到 save_data 中
             for key, value in final_output.items():
                 if key != 'response':
                     save_data[key] = value
         else:
-            # 如果 final_output 是字符串或其他格式，直接保存
             save_data['response'] = final_output
         
         save_data['injection_log'] = log
@@ -284,7 +277,6 @@ async def main(args):
         for sample in tqdm(unprocessed_samples, desc="Processing sequentially"):
             await process_sample(args, sample, lock, output_path, exp_config)
     else:
-        # 检查并行处理的线程安全
         if args.max_workers > 1:
             print(f"⚠️  Warning: Running with {args.max_workers} workers in parallel.")
             print("   Each thread will create its own wrapper instance to ensure thread safety.")

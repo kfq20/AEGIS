@@ -10,9 +10,7 @@ def load_model_api_config(model_api_config, model_name):
         actural_max_workers = model_api_config[model_name]["max_workers_per_model"] * len(model_api_config[model_name]["model_list"])
         model_api_config[model_name]["max_workers"] = actural_max_workers
         
-        # 确保每个 model_list 项都有正确的 provider 配置
         for model_config in model_api_config[model_name]["model_list"]:
-            # 如果没有指定 provider，根据配置推断
             if "provider" not in model_config:
                 if "azure_endpoint" in model_config:
                     model_config["provider"] = "azure"

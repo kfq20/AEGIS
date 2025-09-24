@@ -57,7 +57,7 @@ class AgentVerse_HumanEval(MAS):
         2. an economist who is good at xxx.
         ...
         """
-        role_pattern = r"\d+\.\s*([^.]+)"  # 修改正则，匹配数字后和句点之间的内容
+        role_pattern = r"\d+\.\s*([^.]+)"  # Modified regex to match content between number and period
         
         role_descriptions = re.findall(role_pattern, response)
         

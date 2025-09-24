@@ -21,13 +21,11 @@ class FMDyLANWrapper(SystemWrapper):
             raise ValueError("No LLM configuration found for the specified model name.")
 
         self.llm = create_llm_instance(llm_config)
-        # 动态选择 DyLAN 变体
         method_name = exp_config['system_under_test']['name']  # "dylan"
-        dataset_name = exp_config.get('benchmark_name', None)  # 如 "GSM8K", "MATH", "MMLU", "HumanEval"
+        dataset_name = exp_config.get('benchmark_name', None)
         MAS_CLASS = get_method_class(method_name, dataset_name)
         self.dylan_instance = MAS_CLASS(general_config, method_config_name=None)
 
-        # 创建FM恶意注入工厂
         self.fm_factory = FMMaliciousFactory(llm=self.llm)
 
         print(f"FMDyLANWrapper initialized with {MAS_CLASS.__name__}.")
@@ -235,9 +233,7 @@ class FMDyLANWrapper(SystemWrapper):
         def fm_malicious_llm_call(*args, **kwargs):
             messages = args[2] if len(args) > 2 else kwargs.get('messages', [])
             
-            # 获取当前节点的角色和编号
 
-            # 1. 直接读取 DyLAN 当前激活节点和轮次
             node_idx = getattr(self.dylan_instance, 'current_node_idx', None)
             round_id = getattr(self.dylan_instance, 'current_round_id', None)
             num_agents = getattr(self.dylan_instance, 'num_agents', None)
@@ -248,7 +244,6 @@ class FMDyLANWrapper(SystemWrapper):
                 current_role_index = node_idx % num_agents if num_agents else None
             print(f"[FM DyLAN Runner Intercept] Node {node_idx}: role='{current_role}', index={current_role_index}, round={round_id}")
 
-            # 2. 判断是否注入恶意内容
             is_malicious_call = (current_role == target_role and current_role_index == target_role_index)
 
             if not is_malicious_call:
@@ -256,8 +251,6 @@ class FMDyLANWrapper(SystemWrapper):
 
             print(f"*** FM Malicious Agent Activated on '{current_role}' (index {current_role_index}, node {node_idx}, round {round_id}) ***")
             
-            # 提取agent context
-            # 创建一个模拟的agent对象，包含当前node的信息
             class MockAgent:
                 def __init__(self, role, role_description, dylan_instance):
                     self.role_name = role
@@ -268,27 +261,22 @@ class FMDyLANWrapper(SystemWrapper):
                     self.model_type = "LLM"
                     self.chat_history = []  # Could be populated from previous rounds
                     
-                    # 添加一些DyLAN特有的属性
                     self.dylan_instance = dylan_instance
                     self.node_id = node_idx
                     self.round = round_id
             
-            # 获取角色描述
             role_map = self.dylan_instance._get_role_map()
             role_description = role_map.get(current_role, "You are a DyLAN agent.")
             
-            # 创建模拟agent对象
             mock_agent = MockAgent(current_role, role_description, self.dylan_instance)
             
             agent_context = self.fm_factory.extract_agent_context(
-                mock_agent,  # 使用模拟的agent对象
+                mock_agent,
                 {"name": current_role, "description": f"DyLAN {current_role} agent"}
             )
             
-            # 更新malicious_agent的context
             malicious_agent.agent_context = agent_context
             
-            # 使用FM工厂执行恶意注入
             task_input = messages[-1]['content'] if messages else ""
             
             if malicious_agent.injection_strategy == InjectionStrategy.PROMPT_INJECTION:

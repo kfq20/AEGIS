@@ -31,7 +31,7 @@ class LLM_Debate_Main(MAS):
         answers = [agent_context[-1]['content'] for agent_context in agent_contexts]
         
         final_answer = self.aggregate(query, answers)
-        self.agent_contexts = agent_contexts  # 记录完整对话历史，供 wrapper 使用
+        self.agent_contexts = agent_contexts
         return {"response": final_answer}
     
     def construct_message(self, agents, question, idx):

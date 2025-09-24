@@ -19,11 +19,9 @@ parser.add_argument("--inject", default=True, help="Enable malicious injection."
 parser.add_argument("--target-agent", type=str, default="WebSurfer", choices=["Orchestrator", "WebSurfer", "FileSurfer", "Coder", "ComputerTerminal"], help="The agent to inject.")
 parser.add_argument("--fm-type", type=str, default="FM-2.5", help="The FM error type to inject.")
 parser.add_argument("--injection-strategy", type=str, choices=["prompt_injection", "response_corruption"], default="prompt_injection", help="The injection strategy.")
-# 添加子集相关参数
 parser.add_argument("--randomize", action="store_true", help="随机化任务顺序")
 parser.add_argument("--level", type=str, default="all", help="GAIA level: 1, 2, 3, 或 'all' 表示所有级别")
 parser.add_argument("--on", type=str, default="valid", choices=["valid", "test"], help="数据集类型")
-# 日志捕获相关参数
 parser.add_argument("--capture-mode", type=str, default="stream", 
                     choices=["stream", "memory", "direct", "none"],
                     help="日志捕获模式: stream(流式缓存,推荐), memory(内存优化), direct(直接文件), none(不捕获)")
@@ -88,7 +86,6 @@ def load_tasks(
         
         datas = [data for data in gaia_data[on] if data["Level"] in levels]
         
-        # 如果使用子集，过滤任务
         if use_subset and subset_file:
             if os.path.exists(subset_file):
                 with open(subset_file, 'r', encoding='utf-8') as f:
@@ -97,7 +94,6 @@ def load_tasks(
                     print(f"📋 使用子集数据集: {subset_file}")
                     print(f"📊 子集包含 {len(subset_task_ids)} 个任务")
                     
-                    # 过滤数据
                     original_count = len(datas)
                     datas = [data for data in datas if data["task_id"] in subset_task_ids]
                     print(f"🔍 过滤后剩余 {len(datas)} 个任务 (从 {original_count} 个)")
@@ -138,7 +134,6 @@ async def run_task_and_capture_log(team, task_prompt, capture_mode="stream", max
         return f"Task completed: {task_prompt[:100]}..."
     
     elif capture_mode == "direct":
-        # 直接写入文件，内存占用最小
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.log', encoding='utf-8') as temp_file:
             old_stdout = sys.stdout
             sys.stdout = temp_file
@@ -150,20 +145,17 @@ async def run_task_and_capture_log(team, task_prompt, capture_mode="stream", max
                 sys.stdout = old_stdout
                 temp_file.flush()
                 
-                # 读取完整文件内容
                 with open(temp_file.name, 'r', encoding='utf-8') as f:
                     log_content = f.read()
                 
-                # 删除临时文件
                 os.unlink(temp_file.name)
                 gc.collect()
         
         return log_content
     
     elif capture_mode == "stream":
-        # 流式缓存，定期刷新到磁盘，平衡性能和完整性
         class StreamingFileBuffer:
-            def __init__(self, flush_threshold=8192):  # 8KB 缓存
+            def __init__(self, flush_threshold=8192):
                 self.temp_file = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.log', encoding='utf-8')
                 self.buffer = []
                 self.buffer_size = 0
@@ -175,7 +167,6 @@ async def run_task_and_capture_log(team, task_prompt, capture_mode="stream", max
                     self.buffer.append(s)
                     self.buffer_size += len(s)
                     
-                    # 达到阈值时刷新到文件
                     if self.buffer_size >= self.flush_threshold:
                         self._flush_buffer()
                 
@@ -200,7 +191,6 @@ async def run_task_and_capture_log(team, task_prompt, capture_mode="stream", max
                     content = self.temp_file.read()
                     self.temp_file.close()
                     
-                    # 删除临时文件
                     try:
                         os.unlink(self.temp_file.name)
                     except:
@@ -223,7 +213,6 @@ async def run_task_and_capture_log(team, task_prompt, capture_mode="stream", max
         return log_content
     
     else:  # capture_mode == "memory"
-        # 优化的内存捕获，使用 deque 提高性能
         class OptimizedStringIO:
             def __init__(self):
                 self.chunks = deque()
@@ -239,7 +228,6 @@ async def run_task_and_capture_log(team, task_prompt, capture_mode="stream", max
                 if not self.chunks:
                     return ""
                 result = ''.join(self.chunks)
-                # 清理内存
                 self.chunks.clear()
                 self.total_size = 0
                 return result
@@ -257,7 +245,7 @@ async def run_task_and_capture_log(team, task_prompt, capture_mode="stream", max
         finally:
             sys.stdout = old_stdout
             log_content = mystdout.getvalue()
-            del mystdout  # 显式删除
+            del mystdout
             gc.collect()
         
         return log_content
@@ -277,7 +265,6 @@ async def main() -> None:
     # print(f"🔍 DEBUG: injection_coordinator.fm_error_type = {injection_coordinator.fm_error_type}")
     # print(f"🔍 DEBUG: injection_coordinator.injection_strategy = {injection_coordinator.injection_strategy}")
     
-    # 处理级别参数
     if args.level == "all":
         LEVEL = "all"
         level_for_loading = "all"
@@ -293,7 +280,6 @@ async def main() -> None:
     on = args.on
     OUTPUT_PATH = f"magentic_one/injection_logs/level_{LEVEL}_{on}_{args.target_agent}_{args.fm_type}_{args.injection_strategy}.json"
 
-    # 加载任务
     tasks = load_tasks(
         on=on, 
         level=level_for_loading,
@@ -306,7 +292,6 @@ async def main() -> None:
     if len(tasks) > 0:
         print(f"🔍 第一个任务ID: {tasks[0]['task_id']}")
 
-    # === 断点重续逻辑保持不变 ===
     if os.path.exists(OUTPUT_PATH):
         with open(OUTPUT_PATH, "r", encoding="utf-8") as f:
             all_logs = json.load(f)
@@ -319,7 +304,6 @@ async def main() -> None:
         base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     )
 
-    # === 修改：每个任务创建新的团队 ===
     completed_count = 0
     for task in tasks:
         task_id = task["task_id"]
@@ -327,7 +311,6 @@ async def main() -> None:
             print(f"Task {task_id} 已完成，跳过。")
             continue
         
-        # 检查是否达到限制
         if args.limit is not None and completed_count >= args.limit:
             print(f"🎯 已完成 {completed_count} 个任务，达到限制 ({args.limit})，停止处理。")
             break
@@ -337,7 +320,6 @@ async def main() -> None:
         coder_client = create_model_client()
         team_client = create_model_client()
         
-        # 为每个任务创建新的团队实例
         surfer = MultimodalWebSurfer("WebSurfer", model_client=surfer_client)
         file_surfer = FileSurfer("FileSurfer", model_client=file_surfer_client)
         coder = MagenticOneCoderAgent("Coder", model_client=coder_client)
@@ -348,12 +330,9 @@ async def main() -> None:
         # print(f"🔍 DEBUG: team.model_client id = {id(team._model_client) if hasattr(team, '_model_client') else 'NO_MODEL_CLIENT'}")
         # print(f"🔍 DEBUG: injection model_client id = {id(model_client)}")
         
-        # 应用注入（如果目标不是Orchestrator，立即注入；否则延迟注入）
         injection_coordinator.apply_injection(team)
         
-        # 如果目标agent是Orchestrator，需要在运行时注入
         if injection_coordinator.enabled and injection_coordinator.target_agent_name == "Orchestrator":
-            # 创建一个包装函数来在运行时注入
             original_run_stream = team.run_stream
             
             async def run_stream_with_injection(*args, **kwargs):
@@ -361,10 +340,8 @@ async def main() -> None:
                 # print(f"🔍 DEBUG: hasattr(team, '_group_chat_manager') = {hasattr(team, '_group_chat_manager')}")
                 # print(f"🔍 DEBUG: team._group_chat_manager = {getattr(team, '_group_chat_manager', 'NOT_FOUND')}")
                 
-                # 确保在每次运行时注入都是活跃的
                 # print("🎯 Runtime injection: Applying injection to ensure all LLM calls are intercepted...")
                 injection_coordinator.apply_injection(team)
-                # 返回异步生成器，而不是协程
                 async for message in original_run_stream(*args, **kwargs):
                     yield message
             team.run_stream = run_stream_with_injection
@@ -379,7 +356,6 @@ async def main() -> None:
             capture_mode=args.capture_mode
         )
 
-        # 每做完一个就保存一次
         os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
         with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
             json.dump(all_logs, f, ensure_ascii=False, indent=2)
