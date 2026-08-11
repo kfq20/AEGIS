@@ -18,7 +18,7 @@
 
 AEGIS is a **large-scale dataset and benchmark** for detecting errors in Multi-Agent Systems (MAS). It provides systematically generated failure scenarios with verifiable ground-truth labels across multiple MAS frameworks, enabling development and evaluation of robust error detection methods.
 
-## 🏆 Key Result
+## 🏆 Key Results
 
 <div align="center">
 <img src="assests/results.jpg" width="900" alt="AEGIS System Overview">
